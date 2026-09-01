@@ -252,7 +252,7 @@ function Sorteo() {
             </div>
 
             <h1 className="text-4xl md:text-6xl font-extrabold leading-tight text-white">
-              Sorteo Triple{" "}
+              Sorteo de una {" "}
               <span className="text-[#e21f26]">
                 Honda Wave
               </span>
@@ -839,7 +839,7 @@ function Sorteo() {
 
               {/* Instagram */}
               <a
-                href="#"
+                href="https://www.instagram.com/axelcaballeroo/"
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="Instagram"
