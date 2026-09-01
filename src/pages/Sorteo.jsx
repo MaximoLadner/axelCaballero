@@ -9,6 +9,7 @@ import emailjs from "@emailjs/browser";
 import logo from "../../public/logo.jpeg";
 import { FaFacebookF, FaInstagram, FaGoogle } from "react-icons/fa";
 
+
 function Sorteo() {
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
   const [registrado, setRegistrado] = useState(false);
@@ -25,46 +26,60 @@ function Sorteo() {
   const promociones = obtenerPromociones();
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+  e.preventDefault();
 
-    if (!promocionId) {
-      alert("Seleccioná una promoción.");
-      return;
+  if (!promocionId) {
+    alert("Seleccioná una promoción.");
+    return;
+  }
+
+  try {
+    setProcesando(true);
+
+    const response = await fetch(
+      "http://127.0.0.1:5001/sorteos-web-93312/us-central1/crearPreferencia",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          promocionId,
+          nombre,
+          email,
+          telefono,
+        }),
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(
+        data.error || "No se pudo crear el pago."
+      );
     }
 
-    try {
-      setProcesando(true);
-
-      const resultado = await registrarParticipante({
+    // Guardamos estos datos por si los necesitamos al volver.
+    localStorage.setItem(
+      "datosParticipante",
+      JSON.stringify({
         nombre,
         email,
         telefono,
         promocionId,
-      });
+      })
+    );
 
-      await emailjs.send(
-        "service_ox6nl4h",
-        "template_sorteo",
-        {
-          nombre: nombre,
-          cantidadNumeros: resultado.cantidadNumeros,
-          numeros: resultado.numeros.join(", "),
-          montoPagado: resultado.montoPagado,
-          to_email: email,
-        },
-        "DRdm2ePkprgMAafMZ"
-      );
-
-      setNumeros(resultado.numeros);
-      setMontoPagado(resultado.montoPagado);
-      setRegistrado(true);
-    } catch (error) {
-      console.error(error);
-      alert("Hubo un error al registrarte.");
-    } finally {
-      setProcesando(false);
-    }
-  };
+    // Redirigimos al checkout de Mercado Pago.
+    window.location.href = data.initPoint;
+  } catch (error) {
+    console.error("Error iniciando Mercado Pago:", error);
+    alert("No se pudo iniciar el pago.");
+  } finally {
+    setProcesando(false);
+  }
+};
 
   /*
    * ==========================================
@@ -81,11 +96,11 @@ function Sorteo() {
             <div className="flex items-center gap-2 font-bold text-xl text-white">
               <img
   src={logo}
-  alt="Autoloop"
+  alt="Motor Win"
   className="w-10 h-10 object-contain"
 />
 
-<span>Autoloop</span>
+<span>Motor Win</span>
             </div>
           </div>
         </nav>
@@ -182,7 +197,7 @@ function Sorteo() {
           >
             <img
   src={logo}
-  alt="Autoloop"
+  alt="Motor Win"
   className="w-10 h-10 object-contain"
 />
 
@@ -730,7 +745,7 @@ function Sorteo() {
                           ⏳
                         </span>
 
-                        Registrando...
+                        Procesando...
                       </>
                     ) : (
                       <>
