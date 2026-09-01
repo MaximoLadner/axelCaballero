@@ -1,4 +1,4 @@
-const { setGlobalOptions } = require("firebase-functions");
+ const { setGlobalOptions } = require("firebase-functions");
 const { onRequest } = require("firebase-functions/https");
 const logger = require("firebase-functions/logger");
 const { MercadoPagoConfig, Preference } = require("mercadopago");
@@ -10,6 +10,10 @@ const client = new MercadoPagoConfig({
 });
 
 const preference = new Preference(client);
+
+const { Payment } = require("mercadopago");
+
+const payment = new Payment(client);
 
 exports.crearPreferencia = onRequest(async (req, res) => {
   // Permitimos únicamente POST
@@ -49,20 +53,22 @@ exports.crearPreferencia = onRequest(async (req, res) => {
     }
 
     const response = await preference.create({
-      body: {
-        items: [
-          {
-            id: promocionId,
-            title: promocion.nombre,
-            quantity: 1,
-            unit_price: promocion.precio,
-            currency_id: "ARS",
-          },
-        ],
-
-        external_reference: promocionId,
+  body: {
+    items: [
+      {
+        id: promocionId,
+        title: promocion.nombre,
+        quantity: 1,
+        unit_price: promocion.precio,
+        currency_id: "ARS",
       },
-    });
+    ],
+
+    external_reference: promocionId,
+
+    notification_url: process.env.MP_NOTIFICATION_URL,
+  },
+});
 
     logger.info("Preferencia creada", {
       preferenceId: response.id,
@@ -79,5 +85,47 @@ exports.crearPreferencia = onRequest(async (req, res) => {
     return res.status(500).json({
       error: "No se pudo crear la preferencia de Mercado Pago",
     });
+  }
+});
+
+exports.procesarPago = onRequest(async (req, res) => {
+  try {
+    if (req.method !== "POST") {
+      return res.status(405).send("Método no permitido");
+    }
+
+    logger.info("Webhook recibido de Mercado Pago", {
+      body: req.body,
+      query: req.query,
+    });
+
+    const paymentId =
+      req.body?.data?.id ||
+      req.query?.["data.id"];
+
+    const type =
+      req.body?.type ||
+      req.query?.type;
+
+    if (type !== "payment" || !paymentId) {
+      return res.status(200).send("Notificación ignorada");
+    }
+
+    const paymentData = await payment.get({
+      id: paymentId,
+    });
+
+    logger.info("Pago consultado", {
+      paymentId,
+      status: paymentData.status,
+      statusDetail: paymentData.status_detail,
+      amount: paymentData.transaction_amount,
+    });
+
+    return res.status(200).send("OK");
+  } catch (error) {
+    logger.error("Error procesando webhook", error);
+
+    return res.status(500).send("Error");
   }
 });
