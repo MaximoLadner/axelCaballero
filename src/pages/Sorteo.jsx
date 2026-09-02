@@ -1,20 +1,26 @@
-import { useEffect, useState } from "react";
+
+import { useState } from "react";
 
 import {
   obtenerPromociones,
 } from "../services/participanteService";
 
 import logo from "../../public/logo.jpeg";
-import { FaFacebookF, FaInstagram, FaGoogle } from "react-icons/fa";
-
+import {
+  FaFacebookF,
+  FaInstagram,
+  FaGoogle,
+} from "react-icons/fa";
 
 function Sorteo() {
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
-  const [registrado, setRegistrado] = useState(false);
+  const [mostrarChat, setMostrarChat] = useState(false);
+  const [pedidoRealizado, setPedidoRealizado] = useState(false);
   const [procesando, setProcesando] = useState(false);
 
+  const [pedidoId, setPedidoId] = useState("");
   const [numeros, setNumeros] = useState([]);
-  const [montoPagado, setMontoPagado] = useState(0);
+  const [monto, setMonto] = useState(0);
 
   const [nombre, setNombre] = useState("");
   const [email, setEmail] = useState("");
@@ -23,334 +29,683 @@ function Sorteo() {
 
   const promociones = obtenerPromociones();
 
+  // ==========================================
+  // DATOS DE TRANSFERENCIA
+  // ==========================================
+
+  const DATOS_TRANSFERENCIA = {
+    banco: "YOPIT PAGOS",
+    cbu: "0000129400000007350191",
+    titular: "Servygest Provincia",
+  };
+
+  // ==========================================
+  // CREAR PEDIDO
+  // ==========================================
+
   const handleSubmit = async (e) => {
-  e.preventDefault();
+    e.preventDefault();
 
-  if (!promocionId) {
-    alert("Seleccioná una promoción.");
-    return;
-  }
+    if (!promocionId) {
+      alert("Seleccioná una promoción.");
+      return;
+    }
 
-  if (!nombre || !email || !telefono) {
-    alert("Completá todos tus datos.");
-    return;
-  }
+    if (!nombre.trim() || !email.trim() || !telefono.trim()) {
+      alert("Completá todos tus datos.");
+      return;
+    }
 
-  try {
-    setProcesando(true);
+    try {
+      setProcesando(true);
 
-    const respuesta = await fetch(
-      "/.netlify/functions/crearParticipantePendiente",
-      {
-        method: "POST",
+      const respuesta = await fetch(
+        "/.netlify/functions/crearPedido",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            nombre,
+            email,
+            telefono,
+            promocionId,
+          }),
+        }
+      );
 
-        headers: {
-          "Content-Type": "application/json",
-        },
+      const datos = await respuesta.json();
 
-        body: JSON.stringify({
+      if (!respuesta.ok) {
+        throw new Error(
+          datos.error ||
+            "No se pudo crear el pedido."
+        );
+      }
+
+      // ==========================================
+      // GUARDAR DATOS DEL PEDIDO
+      // ==========================================
+
+      setPedidoId(datos.pedidoId);
+      setNumeros(datos.numeros || []);
+      setMonto(datos.monto || 0);
+
+      localStorage.setItem(
+        "pedidoId",
+        datos.pedidoId
+      );
+
+      localStorage.setItem(
+        "datosPedido",
+        JSON.stringify({
+          pedidoId: datos.pedidoId,
           nombre,
           email,
           telefono,
           promocionId,
-        }),
-      }
-    );
-
-    const datos = await respuesta.json();
-
-    if (!respuesta.ok) {
-      throw new Error(
-        datos.error ||
-          "No se pudo crear la participación."
+          numeros: datos.numeros || [],
+          monto: datos.monto || 0,
+        })
       );
-    }
 
-    // Guardamos el ID que Firebase generó
-    localStorage.setItem(
-      "participanteId",
-      datos.participanteId
-    );
+      // ==========================================
+      // MOSTRAR PANTALLA DEL PEDIDO
+      // ==========================================
 
-    // Guardamos también los datos
-    localStorage.setItem(
-      "datosParticipante",
-      JSON.stringify({
-        nombre,
-        email,
-        telefono,
-        promocionId,
-        participanteId:
-          datos.participanteId,
-      })
-    );
+      setProcesando(false);
+      setPedidoRealizado(true);
 
-
-    // ============================================
-    // LINKS FIJOS
-    // Solo "individual" tiene un link real por ahora.
-    // ============================================
-
-    const linksPago = {
-      individual:
-        "https://mpago.la/1136cpi",
-    };
-
-
-    const linkPago =
-      linksPago[promocionId];
-
-
-    if (!linkPago) {
-      throw new Error(
-        "No existe un link de pago para esta promoción."
-      );
-    }
-
-
-    // Abrimos Mercado Pago
-    window.location.href = linkPago;
-
-  } catch (error) {
-
-    console.error(
-      "Error iniciando pago:",
-      error
-    );
-
-    alert(
-      error.message ||
-        "No se pudo iniciar el pago."
-    );
-
-    setProcesando(false);
-  }
-};
-  /*
-   * ==========================================
-   * PANTALLA DE ÉXITO
-   * ==========================================
-   */
-
-  useEffect(() => {
-  const participanteId =
-    localStorage.getItem(
-      "participanteId"
-    );
-
-  if (!participanteId) {
-    return;
-  }
-
-
-  const verificarPago = async () => {
-    try {
-
-      const respuesta =
-        await fetch(
-          "/.netlify/functions/verificarPago",
-          {
-            method: "POST",
-
-            headers: {
-              "Content-Type":
-                "application/json",
-            },
-
-            body: JSON.stringify({
-              participanteId,
-            }),
-          }
-        );
-
-
-      const datos =
-        await respuesta.json();
-
-
-      if (
-        datos.aprobado === true
-      ) {
-
-        setNumeros(
-          datos.numeros || []
-        );
-
-        setMontoPagado(
-          datos.montoPagado || 0
-        );
-
-        setRegistrado(true);
-
-        setProcesando(false);
-
-
-        localStorage.removeItem(
-          "participanteId"
-        );
-
-        localStorage.removeItem(
-          "datosParticipante"
-        );
-      }
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth",
+      });
 
     } catch (error) {
-
       console.error(
-        "Error verificando pago:",
+        "Error creando pedido:",
         error
       );
 
+      alert(
+        error.message ||
+          "No se pudo crear el pedido."
+      );
+
+      setProcesando(false);
     }
   };
 
+  // ==========================================
+  // COPIAR CBU
+  // ==========================================
 
-  // Primera comprobación
-  verificarPago();
+  const copiarCBU = async () => {
+    try {
+      await navigator.clipboard.writeText(
+        DATOS_TRANSFERENCIA.cbu
+      );
 
+      alert("CBU copiado correctamente.");
+    } catch (error) {
+      console.error(
+        "Error copiando CBU:",
+        error
+      );
 
-  // Después cada 5 segundos
-  const intervalo =
-    setInterval(
-      verificarPago,
-      5000
-    );
-
-
-  return () => {
-    clearInterval(intervalo);
+      alert(
+        "No se pudo copiar el CBU."
+      );
+    }
   };
 
-}, []);
+  // ==========================================
+  // PANTALLA PEDIDO REALIZADO
+  // ==========================================
 
-  if (registrado) {
+  if (pedidoRealizado) {
     return (
-      <div className="min-h-screen bg-[#0a0a0a] text-[#ffffff]">
-        {/* NAVBAR */}
-        <nav className="sticky top-0 z-50 bg-[#0a0a0a]/95 backdrop-blur border-b border-[#2a2a2a]">
-          <div className="flex justify-between items-center w-full px-4 md:px-6 max-w-[1200px] mx-auto py-4">
-            <div className="flex items-center gap-2 font-bold text-xl text-white">
-              <img
-  src={logo}
-  alt="Motor Win"
-  className="w-10 h-10 object-contain"
-/>
+      <div className="min-h-screen bg-[#0a0a0a] text-white">
 
-<span>Motor Win</span>
-            </div>
+        {/* NAVBAR */}
+
+        <nav className="sticky top-0 z-50 bg-[#0a0a0a]/95 backdrop-blur border-b border-[#2a2a2a]">
+
+          <div className="flex justify-between items-center w-full px-4 md:px-6 max-w-[1200px] mx-auto py-4">
+
+            <a
+              href="#"
+              className="flex items-center gap-2 font-extrabold text-xl text-white"
+            >
+              <img
+                src={logo}
+                alt="Motor Win"
+                className="w-10 h-10 object-contain"
+              />
+
+              <span>
+                Motor Win
+              </span>
+            </a>
+
           </div>
+
         </nav>
 
-        <main className="min-h-[calc(100vh-73px)] flex items-center justify-center px-4 py-16">
-          <div className="w-full max-w-2xl">
 
-            <div className="bg-[#141414] border border-[#2a2a2a] rounded-2xl p-8 md:p-12 text-center shadow-2xl">
+        {/* CONTENIDO */}
+
+        <main className="px-4 py-12 md:py-16">
+
+          <div className="max-w-3xl mx-auto">
+
+            {/* CABECERA */}
+
+            <div className="text-center mb-10">
 
               <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-[#e21f26]/10 border border-[#e21f26]/30 flex items-center justify-center">
-                <span className="text-4xl">🎉</span>
+
+                <span className="text-4xl">
+                  🎉
+                </span>
+
               </div>
 
-              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-[#2a2a2a] text-[#ff6259] bg-[#141414] text-sm font-semibold mb-5">
-                <span>✓</span>
-                Participación confirmada
+              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-[#e21f26]/30 text-[#ff6259] bg-[#141414] text-sm font-semibold mb-5">
+
+                ✓ Pedido generado
+
               </div>
 
               <h1 className="text-3xl md:text-5xl font-extrabold text-white mb-4">
-                ¡Ya estás participando!
+
+                ¡Pedido realizado!
+
               </h1>
 
-              <p className="text-[#c9c9c9] text-lg mb-8">
-                Tu participación fue registrada correctamente.
+              <p className="text-[#c9c9c9] text-lg">
+
+                Tu pedido fue creado correctamente.
                 <br />
-                También enviamos tus números a tu correo electrónico.
+
+                Ahora realizá la transferencia para confirmar tu participación.
+
               </p>
 
-              {/* MONTO */}
-              <div className="bg-[#0a0a0a] border border-[#2a2a2a] rounded-xl p-6 mb-8">
-                <p className="text-[#c9c9c9] mb-2">
-                  Importe de participación
+            </div>
+
+
+            {/* NÚMEROS */}
+
+            <div className="bg-[#141414] border border-[#2a2a2a] rounded-2xl p-6 md:p-8 mb-6">
+
+              <div className="text-center mb-6">
+
+                <p className="text-[#8a8a8a] text-sm mb-2">
+                  Tus números asignados
                 </p>
 
-                <p className="text-3xl md:text-4xl font-bold text-[#e21f26]">
-                  ${montoPagado.toLocaleString("es-AR")}
-                </p>
+                <h2 className="text-xl md:text-2xl font-bold text-white">
+                  Se reservaron estos números para vos
+                </h2>
+
               </div>
 
-              {/* NÚMEROS */}
-              <h2 className="text-xl font-bold text-white mb-5">
-                Tus números
-              </h2>
 
-              <div className="flex flex-wrap justify-center gap-3 mb-8">
+              <div className="flex flex-wrap justify-center gap-3">
+
                 {numeros.map((numero) => (
+
                   <div
                     key={numero}
-                    className="min-w-[70px] px-5 py-3 rounded-xl bg-[#e21f26] text-white text-xl font-extrabold shadow-lg shadow-[#e21f26]/20"
+                    className="min-w-[90px] px-5 py-4 rounded-xl bg-[#e21f26] text-white text-2xl font-extrabold shadow-lg shadow-[#e21f26]/20"
                   >
                     {numero}
                   </div>
+
                 ))}
-              </div>
 
-              <div className="border-t border-[#2a2a2a] pt-6">
-                <p className="text-[#c9c9c9] text-sm">
-                  🏍️ ¡Mucha suerte en el sorteo!
-                </p>
-
-                <p className="text-[#8a8a8a] text-sm mt-2">
-                  Jueves 24 de septiembre de 2026 · 22:00 hs
-                </p>
               </div>
 
             </div>
 
+
+            {/* DATOS DEL PEDIDO */}
+
+            <div className="bg-[#141414] border border-[#2a2a2a] rounded-2xl p-6 md:p-8 mb-6">
+
+              <div className="flex items-center justify-between gap-4 mb-6">
+
+                <div>
+
+                  <p className="text-[#8a8a8a] text-sm">
+                    Número de pedido
+                  </p>
+
+                  <p className="text-white font-bold text-xl">
+                    #{pedidoId}
+                  </p>
+
+                </div>
+
+
+                <div className="text-right">
+
+                  <p className="text-[#8a8a8a] text-sm">
+                    Estado
+                  </p>
+
+                  <span className="inline-flex mt-1 px-3 py-1 rounded-full bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 text-sm font-semibold">
+                    Pendiente de pago
+                  </span>
+
+                </div>
+
+              </div>
+
+
+              <div className="border-t border-[#2a2a2a] pt-5">
+
+                <p className="text-[#8a8a8a] text-sm mb-1">
+                  Monto a transferir
+                </p>
+
+                <p className="text-3xl font-extrabold text-[#e21f26]">
+                  ${monto.toLocaleString("es-AR")}
+                </p>
+
+              </div>
+
+            </div>
+
+
+            {/* TRANSFERENCIA */}
+
+            <div className="bg-[#141414] border border-[#e21f26]/40 rounded-2xl p-6 md:p-8 mb-6">
+
+              <div className="mb-6">
+
+                <div className="flex items-center gap-3 mb-2">
+
+                  <div className="w-11 h-11 rounded-xl bg-[#e21f26]/10 border border-[#e21f26]/30 flex items-center justify-center text-xl">
+                    💳
+                  </div>
+
+                  <h2 className="text-2xl font-bold text-white">
+                    Datos para transferencia
+                  </h2>
+
+                </div>
+
+                <p className="text-[#c9c9c9]">
+                  Transferí exactamente el importe de tu pedido a la siguiente cuenta.
+                </p>
+
+              </div>
+
+
+              <div className="space-y-4">
+
+                {/* BANCO */}
+
+                <div className="bg-[#0a0a0a] border border-[#2a2a2a] rounded-xl p-4">
+
+                  <p className="text-[#8a8a8a] text-sm mb-1">
+                    Banco / billetera
+                  </p>
+
+                  <p className="text-white font-bold text-lg">
+                    {DATOS_TRANSFERENCIA.banco}
+                  </p>
+
+                </div>
+
+
+                {/* CBU */}
+
+                <div className="bg-[#0a0a0a] border border-[#2a2a2a] rounded-xl p-4">
+
+                  <p className="text-[#8a8a8a] text-sm mb-2">
+                    CBU
+                  </p>
+
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+
+                    <p className="text-white font-bold break-all flex-1">
+                      {DATOS_TRANSFERENCIA.cbu}
+                    </p>
+
+                    <button
+                      onClick={copiarCBU}
+                      className="shrink-0 px-4 py-2 rounded-lg border border-[#e21f26] text-[#e21f26] font-semibold hover:bg-[#e21f26] hover:text-white transition"
+                    >
+                      📋 Copiar CBU
+                    </button>
+
+                  </div>
+
+                </div>
+
+
+                {/* TITULAR */}
+
+                <div className="bg-[#0a0a0a] border border-[#2a2a2a] rounded-xl p-4">
+
+                  <p className="text-[#8a8a8a] text-sm mb-1">
+                    Titular
+                  </p>
+
+                  <p className="text-white font-bold text-lg">
+                    {DATOS_TRANSFERENCIA.titular}
+                  </p>
+
+                </div>
+
+
+                {/* MONTO */}
+
+                <div className="bg-[#e21f26]/5 border border-[#e21f26]/20 rounded-xl p-5">
+
+                  <div className="flex justify-between items-center gap-4">
+
+                    <div>
+
+                      <p className="text-[#8a8a8a] text-sm">
+                        Importe exacto
+                      </p>
+
+                      <p className="text-white font-semibold">
+                        Transferí este monto
+                      </p>
+
+                    </div>
+
+                    <p className="text-2xl md:text-3xl font-extrabold text-[#e21f26]">
+                      ${monto.toLocaleString("es-AR")}
+                    </p>
+
+                  </div>
+
+                </div>
+
+              </div>
+
+            </div>
+
+
+            {/* AVISO */}
+
+            <div className="bg-[#1c1c1c] border border-[#2a2a2a] rounded-xl p-5 mb-6">
+
+              <p className="text-white font-semibold mb-2">
+                📸 Después de transferir
+              </p>
+
+              <p className="text-[#c9c9c9] text-sm leading-relaxed">
+                Guardá una captura del comprobante y enviala por el chat.
+                Tu comprobante será revisado para confirmar el pago.
+              </p>
+
+            </div>
+
+
+            {/* CHAT */}
+
+            <div className="bg-[#141414] border border-[#2a2a2a] rounded-2xl p-6 md:p-8 mb-6">
+
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5">
+
+                <div>
+
+                  <h2 className="text-xl font-bold text-white mb-2">
+                    ¿Necesitás ayuda?
+                  </h2>
+
+                  <p className="text-[#c9c9c9] text-sm">
+                    Podés consultar sobre tu pedido #{pedidoId}
+                    y enviar tu comprobante por el chat.
+                  </p>
+
+                </div>
+
+
+                <button
+                  onClick={() =>
+                    setMostrarChat(true)
+                  }
+                  className="shrink-0 px-5 py-3 rounded-lg bg-[#e21f26] text-white font-bold hover:bg-[#b3161c] transition"
+                >
+                  💬 Abrir chat
+                </button>
+
+              </div>
+
+            </div>
+
+
+            {/* EMAIL */}
+
+            <div className="bg-[#141414] border border-[#2a2a2a] rounded-2xl p-6 md:p-8 mb-8">
+
+              <div className="flex items-start gap-4">
+
+                <div className="w-11 h-11 rounded-xl bg-[#1c1c1c] border border-[#2a2a2a] flex items-center justify-center text-xl shrink-0">
+                  📧
+                </div>
+
+                <div>
+
+                  <h2 className="text-xl font-bold text-white mb-2">
+                    También podés enviar el comprobante por email
+                  </h2>
+
+                  <p className="text-[#c9c9c9] text-sm leading-relaxed">
+
+                    Mandanos el comprobante indicando tu número de pedido:
+
+                    <strong className="text-white">
+                      {" "}#{pedidoId}
+                    </strong>
+
+                  </p>
+
+                  <a
+                    href={`mailto:sorteoscaballeros@gmail.com?subject=Comprobante%20pedido%20%23${pedidoId}`}
+                    className="inline-block mt-4 text-[#ff6259] font-semibold hover:text-white transition"
+                  >
+                    sorteoscaballeros@gmail.com
+                  </a>
+
+                </div>
+
+              </div>
+
+            </div>
+
+
+            {/* VOLVER */}
+
+            <div className="text-center">
+
+              <button
+                onClick={() => {
+                  setPedidoRealizado(false);
+                  setMostrarFormulario(false);
+                  setPromocionId("");
+                  setPedidoId("");
+                  setNumeros([]);
+                  setMonto(0);
+                  setMostrarChat(false);
+                }}
+                className="px-6 py-3 rounded-lg border border-[#2a2a2a] text-[#c9c9c9] hover:border-[#e21f26] hover:text-white transition"
+              >
+                ← Volver a la tienda
+              </button>
+
+            </div>
+
           </div>
+
         </main>
+
+
+        {/* CHAT */}
+
+        {mostrarChat && (
+
+          <>
+
+            {/* FONDO */}
+
+            <div
+              onClick={() =>
+                setMostrarChat(false)
+              }
+              className="fixed inset-0 z-[90] bg-black/50"
+            />
+
+
+            {/* VENTANA */}
+
+            <div className="fixed bottom-5 right-5 z-[100] w-[calc(100vw-40px)] sm:w-[390px] max-h-[75vh] bg-[#141414] border border-[#2a2a2a] rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+
+              {/* HEADER */}
+
+              <div className="bg-[#0a0a0a] border-b border-[#2a2a2a] px-5 py-4 flex items-center justify-between">
+
+                <div className="flex items-center gap-3">
+
+                  <div className="w-10 h-10 rounded-full bg-[#e21f26] flex items-center justify-center">
+                    💬
+                  </div>
+
+                  <div>
+
+                    <p className="text-white font-bold">
+                      Motor Win
+                    </p>
+
+                    <p className="text-xs text-[#8a8a8a]">
+                      Asistencia para tu pedido
+                    </p>
+
+                  </div>
+
+                </div>
+
+
+                <button
+                  onClick={() =>
+                    setMostrarChat(false)
+                  }
+                  className="text-[#8a8a8a] hover:text-white text-xl"
+                >
+                  ✕
+                </button>
+
+              </div>
+
+
+              {/* MENSAJE */}
+
+              <div className="flex-1 overflow-y-auto p-5">
+
+                <div className="bg-[#1c1c1c] border border-[#2a2a2a] rounded-2xl rounded-tl-sm p-4">
+
+                  <p className="text-white font-semibold mb-2">
+                    👋 ¡Hola!
+                  </p>
+
+                  <p className="text-[#c9c9c9] text-sm leading-relaxed">
+
+                    Este chat va a permitirte enviar el comprobante
+                    de transferencia y consultar sobre tu pedido.
+
+                  </p>
+
+
+                  <div className="mt-4 bg-[#0a0a0a] rounded-lg p-3 border border-[#2a2a2a]">
+
+                    <p className="text-[#8a8a8a] text-xs">
+                      Pedido
+                    </p>
+
+                    <p className="text-white font-bold">
+                      #{pedidoId}
+                    </p>
+
+                  </div>
+
+                </div>
+
+              </div>
+
+
+              {/* FOOTER */}
+
+              <div className="border-t border-[#2a2a2a] p-4 bg-[#0f0f0f]">
+
+                <p className="text-[#8a8a8a] text-xs text-center">
+                  📎 Próximamente vas a poder subir tu comprobante directamente desde acá.
+                </p>
+
+              </div>
+
+            </div>
+
+          </>
+
+        )}
+
       </div>
     );
   }
 
-  /*
-   * ==========================================
-   * LANDING + FORMULARIO
-   * ==========================================
-   */
+
+  // ==========================================
+  // LANDING
+  // ==========================================
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-[#ffffff] antialiased">
+    <div className="min-h-screen bg-[#0a0a0a] text-white antialiased">
 
-      {/* =====================================
-          NAVBAR
-      ===================================== */}
+      {/* NAVBAR */}
 
       <nav className="sticky top-0 z-50 bg-[#0a0a0a]/95 backdrop-blur border-b border-[#2a2a2a]">
+
         <div className="flex justify-between items-center w-full px-4 md:px-6 max-w-[1200px] mx-auto py-4">
 
-          {/* LOGO */}
           <a
             href="#inicio"
             className="flex items-center gap-2 font-extrabold text-xl text-white hover:opacity-80 transition"
           >
-            <img
-  src={logo}
-  alt="Motor Win"
-  className="w-10 h-10 object-contain"
-/>
 
-<span>Motor Win</span>
+            <img
+              src={logo}
+              alt="Motor Win"
+              className="w-10 h-10 object-contain"
+            />
+
+            <span>
+              Motor Win
+            </span>
+
           </a>
 
-          {/* NAV DESKTOP */}
+
           <div className="hidden md:flex items-center gap-8">
+
             <a
               href="#inicio"
               className="text-[#ff6259] font-bold border-b-2 border-[#e21f26] pb-1"
             >
               Sorteo en vivo
             </a>
+
           </div>
 
-          {/* ACTIONS */}
+
           <div className="flex items-center gap-3">
 
             <a
@@ -360,60 +715,83 @@ function Sorteo() {
               🏆 Ganadores
             </a>
 
+
             <button
               onClick={() => {
+
+                if (!promocionId) {
+                  alert(
+                    "Primero seleccioná una promoción."
+                  );
+                  return;
+                }
+
                 setMostrarFormulario(true);
 
                 setTimeout(() => {
+
                   document
                     .getElementById("formulario")
-                    ?.scrollIntoView({ behavior: "smooth" });
+                    ?.scrollIntoView({
+                      behavior: "smooth",
+                    });
+
                 }, 100);
+
               }}
               className="flex items-center gap-2 px-5 md:px-6 py-2 rounded-full border border-[#e21f26] text-[#e21f26] font-semibold hover:bg-[#e21f26] hover:text-white transition"
             >
+
               🎟️
+
               <span className="hidden sm:inline">
                 Mis Números
               </span>
+
             </button>
 
           </div>
+
         </div>
+
       </nav>
 
 
       <main>
 
-        {/* =====================================
-            HERO
-        ===================================== */}
+        {/* HERO */}
 
         <section
           id="inicio"
           className="w-full max-w-[1200px] mx-auto px-4 md:px-6 py-16 md:py-20 flex flex-col md:flex-row items-center gap-12"
         >
 
-          {/* TEXTO */}
           <div className="flex-1 flex flex-col items-start gap-6">
 
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-[#2a2a2a] text-[#ff6259] bg-[#141414] text-sm font-semibold">
-              🎁
-              ¡Nuevo Sorteo Disponible!
+              🎁 ¡Nuevo Sorteo Disponible!
             </div>
 
+
             <h1 className="text-4xl md:text-6xl font-extrabold leading-tight text-white">
-              Sorteo de una {" "}
+
+              Sorteo de una{" "}
+
               <span className="text-[#e21f26]">
                 Honda Wave
               </span>
+
             </h1>
 
+
             <p className="text-lg md:text-xl leading-7 text-[#c9c9c9] max-w-xl">
+
               Participá ahora y llevate una de las tres Honda Wave 0KM.
               Comprá tus chances y asegurá tu lugar en el sorteo más
               esperado del año.
+
             </p>
+
 
             <p className="text-base text-[#8a8a8a]">
               ¡Más números, más posibilidades de ganar!
@@ -421,6 +799,7 @@ function Sorteo() {
 
 
             {/* FECHA */}
+
             <div className="w-full mt-2 bg-[#141414] border border-[#2a2a2a] rounded-xl p-5 md:p-6 flex flex-col gap-5 relative overflow-hidden">
 
               <div className="absolute -top-10 -right-10 w-32 h-32 bg-[#e21f26] rounded-full blur-[60px] opacity-10" />
@@ -446,11 +825,15 @@ function Sorteo() {
                   </span>
 
                 </div>
+
               </div>
+
 
               <button
                 onClick={() =>
-                  alert("Próximamente: enlace al sorteo en vivo por YouTube.")
+                  alert(
+                    "Próximamente: enlace al sorteo en vivo por YouTube."
+                  )
                 }
                 className="w-full sm:w-fit flex items-center justify-center gap-2 px-5 py-3 rounded-lg border border-[#e21f26] text-[#e21f26] font-semibold hover:bg-[#e21f26]/10 transition relative z-10"
               >
@@ -460,12 +843,15 @@ function Sorteo() {
             </div>
 
 
-            {/* CTA */}
             <button
               onClick={() => {
+
                 document
                   .getElementById("pricing")
-                  ?.scrollIntoView({ behavior: "smooth" });
+                  ?.scrollIntoView({
+                    behavior: "smooth",
+                  });
+
               }}
               className="w-full sm:w-auto px-8 py-4 rounded-lg bg-[#e21f26] text-white text-lg font-bold hover:bg-[#b3161c] transition shadow-lg shadow-[#e21f26]/30"
             >
@@ -476,6 +862,7 @@ function Sorteo() {
 
 
           {/* IMAGEN */}
+
           <div className="flex-1 w-full max-w-2xl relative rounded-2xl overflow-hidden border border-[#2a2a2a] shadow-2xl">
 
             <div className="relative w-full aspect-[1.79]">
@@ -497,9 +884,7 @@ function Sorteo() {
         </section>
 
 
-        {/* =====================================
-            CÓMO FUNCIONA
-        ===================================== */}
+        {/* COMO FUNCIONA */}
 
         <section className="w-full bg-[#111111] py-20 border-y border-[#2a2a2a]">
 
@@ -526,28 +911,28 @@ function Sorteo() {
                   icono: "🎟️",
                   titulo: "Elegí tus chances",
                   texto:
-                    "Seleccioná cuántos números querés para el sorteo. Más chances = más probabilidades de ganar.",
+                    "Seleccioná cuántos números querés para el sorteo.",
                 },
                 {
                   numero: "2",
-                  icono: "💳",
+                  icono: "👤",
                   titulo: "Completá tus datos",
                   texto:
-                    "Ingresá tus datos personales y elegí la promoción que quieras.",
+                    "Ingresá tus datos personales para generar tu pedido.",
                 },
                 {
                   numero: "3",
-                  icono: "✅",
-                  titulo: "Recibí tus números",
+                  icono: "💳",
+                  titulo: "Realizá la transferencia",
                   texto:
-                    "Una vez que confirmamos tu pago, recibirás automáticamente tus números por email.",
+                    "Transferí el importe indicado en los datos de tu pedido.",
                 },
                 {
                   numero: "4",
-                  icono: "🏆",
-                  titulo: "¡Participá del sorteo!",
+                  icono: "📸",
+                  titulo: "Enviá el comprobante",
                   texto:
-                    "El día del sorteo se eligen los ganadores en vivo por YouTube.",
+                    "Mandanos el comprobante para verificar tu transferencia.",
                 },
               ].map((paso) => (
 
@@ -583,9 +968,7 @@ function Sorteo() {
         </section>
 
 
-        {/* =====================================
-            PROMOCIONES
-        ===================================== */}
+        {/* PROMOCIONES */}
 
         <section
           id="pricing"
@@ -595,8 +978,7 @@ function Sorteo() {
           <div className="flex flex-col items-start mb-12">
 
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-[#2a2a2a] text-[#ff6259] bg-[#141414] text-sm font-semibold mb-4">
-              ⭐
-              Opciones de Participación
+              ⭐ Opciones de Participación
             </div>
 
             <h2 className="text-3xl md:text-4xl font-bold text-white">
@@ -610,22 +992,31 @@ function Sorteo() {
           </div>
 
 
-          {/* PROMOCIONES */}
           <div className="max-w-3xl flex flex-col gap-4">
 
             {promociones.map((promo) => {
 
-              const seleccionada = promocionId === promo.id;
-              const esDisponible = promo.disponible !== false;
+              const seleccionada =
+                promocionId === promo.id;
 
-              const esPopular = promo.id === "duo";
-              const esMejorValor = promo.id === "pack5";
+              const esDisponible =
+                promo.disponible !== false;
+
+              const esPopular =
+                promo.id === "duo";
+
+              const esMejorValor =
+                promo.id === "pack5";
 
               return (
 
                 <label
                   key={promo.id}
-                  className={esDisponible ? "cursor-pointer group" : "cursor-not-allowed"}
+                  className={
+                    esDisponible
+                      ? "cursor-pointer group"
+                      : "cursor-not-allowed"
+                  }
                 >
 
                   <div
@@ -638,7 +1029,6 @@ function Sorteo() {
                     }`}
                   >
 
-                    {/* BADGES */}
                     {!esDisponible && (
                       <div className="absolute top-0 right-0 bg-[#1c1c1c] text-[#8a8a8a] font-semibold text-xs px-4 py-1 rounded-bl-lg border-b border-l border-[#2a2a2a]">
                         Próximamente
@@ -657,10 +1047,8 @@ function Sorteo() {
                       </div>
                     )}
 
-
                     <div className="flex items-center gap-4 mt-4 sm:mt-0">
 
-                      {/* RADIO */}
                       <div
                         className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 ${
                           seleccionada
@@ -685,15 +1073,17 @@ function Sorteo() {
                         <span className="text-xl font-bold text-white">
 
                           {promo.cantidadNumeros}{" "}
+
                           {promo.cantidadNumeros === 1
                             ? "Chance"
                             : "Chances"}
 
-                          {esDisponible && esMejorValor && (
-                            <span className="ml-2 px-2 py-0.5 rounded text-xs font-bold bg-[#2a0f0e] text-[#e21f26] border border-[#e21f26]/30">
-                              BONUS
-                            </span>
-                          )}
+                          {esDisponible &&
+                            esMejorValor && (
+                              <span className="ml-2 px-2 py-0.5 rounded text-xs font-bold bg-[#2a0f0e] text-[#e21f26] border border-[#e21f26]/30">
+                                BONUS
+                              </span>
+                            )}
 
                         </span>
 
@@ -706,7 +1096,6 @@ function Sorteo() {
                     </div>
 
 
-                    {/* PRECIO */}
                     <div className="text-2xl font-bold text-[#e21f26] mt-4 sm:mt-0">
                       ${promo.precio.toLocaleString("es-AR")}
                     </div>
@@ -721,9 +1110,12 @@ function Sorteo() {
                     checked={seleccionada}
                     disabled={!esDisponible}
                     onChange={() => {
+
                       if (!esDisponible) return;
+
                       setPromocionId(promo.id);
                       setMostrarFormulario(true);
+
                     }}
                     className="hidden"
                   />
@@ -731,12 +1123,11 @@ function Sorteo() {
                 </label>
 
               );
+
             })}
 
 
-            {/* =================================
-                FORMULARIO
-            ================================= */}
+            {/* FORMULARIO */}
 
             {mostrarFormulario && (
 
@@ -760,7 +1151,7 @@ function Sorteo() {
                   </div>
 
                   <p className="text-[#c9c9c9]">
-                    Necesitamos estos datos para registrar tu participación.
+                    Necesitamos estos datos para generar tu pedido.
                   </p>
 
                 </div>
@@ -772,6 +1163,7 @@ function Sorteo() {
                 >
 
                   {/* NOMBRE */}
+
                   <div>
 
                     <label className="block font-semibold text-white mb-2">
@@ -782,7 +1174,9 @@ function Sorteo() {
                       type="text"
                       required
                       value={nombre}
-                      onChange={(e) => setNombre(e.target.value)}
+                      onChange={(e) =>
+                        setNombre(e.target.value)
+                      }
                       className="w-full bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg px-4 py-3 text-white outline-none focus:border-[#e21f26] focus:ring-1 focus:ring-[#e21f26] transition"
                       placeholder="Juan Pérez"
                     />
@@ -791,6 +1185,7 @@ function Sorteo() {
 
 
                   {/* EMAIL */}
+
                   <div>
 
                     <label className="block font-semibold text-white mb-2">
@@ -801,7 +1196,9 @@ function Sorteo() {
                       type="email"
                       required
                       value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      onChange={(e) =>
+                        setEmail(e.target.value)
+                      }
                       className="w-full bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg px-4 py-3 text-white outline-none focus:border-[#e21f26] focus:ring-1 focus:ring-[#e21f26] transition"
                       placeholder="juan@gmail.com"
                     />
@@ -810,6 +1207,7 @@ function Sorteo() {
 
 
                   {/* TELEFONO */}
+
                   <div>
 
                     <label className="block font-semibold text-white mb-2">
@@ -820,7 +1218,9 @@ function Sorteo() {
                       type="tel"
                       required
                       value={telefono}
-                      onChange={(e) => setTelefono(e.target.value)}
+                      onChange={(e) =>
+                        setTelefono(e.target.value)
+                      }
                       className="w-full bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg px-4 py-3 text-white outline-none focus:border-[#e21f26] focus:ring-1 focus:ring-[#e21f26] transition"
                       placeholder="3364..."
                     />
@@ -829,6 +1229,7 @@ function Sorteo() {
 
 
                   {/* RESUMEN */}
+
                   {promocionId && (
 
                     <div className="bg-[#0a0a0a] border border-[#2a2a2a] rounded-xl p-5">
@@ -842,23 +1243,40 @@ function Sorteo() {
                         <div>
 
                           <p className="text-white font-bold text-lg">
-                            {promociones.find(
-                              (p) => p.id === promocionId
-                            )?.cantidadNumeros}{" "}
-                            {promociones.find(
-                              (p) => p.id === promocionId
-                            )?.cantidadNumeros === 1
-                              ? "Chance"
-                              : "Chances"}
+
+                            {
+                              promociones.find(
+                                (p) =>
+                                  p.id === promocionId
+                              )?.cantidadNumeros
+                            }{" "}
+
+                            {
+                              promociones.find(
+                                (p) =>
+                                  p.id === promocionId
+                              )?.cantidadNumeros === 1
+                                ? "Chance"
+                                : "Chances"
+                            }
+
                           </p>
 
                         </div>
 
                         <p className="text-xl font-bold text-[#e21f26]">
+
                           $
+
                           {promociones
-                            .find((p) => p.id === promocionId)
-                            ?.precio.toLocaleString("es-AR")}
+                            .find(
+                              (p) =>
+                                p.id === promocionId
+                            )
+                            ?.precio.toLocaleString(
+                              "es-AR"
+                            )}
+
                         </p>
 
                       </div>
@@ -868,7 +1286,8 @@ function Sorteo() {
                   )}
 
 
-                  {/* BOTON */}
+                  {/* BOTÓN */}
+
                   <button
                     type="submit"
                     disabled={procesando}
@@ -885,20 +1304,23 @@ function Sorteo() {
                           ⏳
                         </span>
 
-                        Procesando...
+                        Creando pedido...
                       </>
                     ) : (
                       <>
-                        Continuar al Pago
+                        Crear pedido
                         <span>→</span>
                       </>
                     )}
 
                   </button>
 
+
                   <p className="text-center text-xs text-[#8a8a8a]">
-                    Al continuar, tu participación será registrada y se
-                    generarán tus números automáticamente.
+
+                    Al continuar, se reservarán tus números y
+                    te mostraremos los datos para realizar la transferencia.
+
                   </p>
 
                 </form>
@@ -908,31 +1330,37 @@ function Sorteo() {
             )}
 
 
-            {/* BOTÓN SI TODAVÍA NO HAY FORMULARIO */}
-
             {!mostrarFormulario && (
 
               <button
                 onClick={() => {
+
                   if (!promocionId) {
-                    alert("Seleccioná una promoción.");
+                    alert(
+                      "Seleccioná una promoción."
+                    );
                     return;
                   }
 
                   setMostrarFormulario(true);
 
                   setTimeout(() => {
+
                     document
                       .getElementById("formulario")
                       ?.scrollIntoView({
                         behavior: "smooth",
                       });
+
                   }, 100);
+
                 }}
                 className="mt-4 w-full md:w-fit px-12 py-4 rounded-lg bg-[#e21f26] text-white font-bold text-lg hover:bg-[#b3161c] transition shadow-lg shadow-[#e21f26]/30 flex items-center justify-center gap-2"
               >
-                Continuar al Pago
+
+                Continuar
                 <span>→</span>
+
               </button>
 
             )}
@@ -944,119 +1372,117 @@ function Sorteo() {
       </main>
 
 
-      {/* =====================================
-          FOOTER
-      ===================================== */}
+      {/* FOOTER */}
 
       <footer className="bg-[#000000] border-t border-white/10">
-      <div className="max-w-7xl mx-auto px-6 py-14">
 
-        {/* Main Footer */}
-        <div className="flex flex-col md:flex-row justify-between gap-10">
+        <div className="max-w-7xl mx-auto px-6 py-14">
 
-          {/* Brand */}
-          <div className="max-w-sm">
-            <div className="flex items-center gap-3 mb-4">
-              <img
-                src={logo}
-                alt="Motor Win"
-                className="w-10 h-10 object-contain"
-              />
+          <div className="flex flex-col md:flex-row justify-between gap-10">
 
-              Motor Win
+            <div className="max-w-sm">
+
+              <div className="flex items-center gap-3 mb-4">
+
+                <img
+                  src={logo}
+                  alt="Motor Win"
+                  className="w-10 h-10 object-contain"
+                />
+
+                Motor Win
+
+              </div>
+
+              <p className="text-gray-400 leading-relaxed">
+
+                La plataforma donde la pasión por los autos
+                se convierte en oportunidades.
+
+              </p>
+
             </div>
 
-            <p className="text-gray-400 leading-relaxed">
-              La plataforma donde la pasión por los autos
-              se convierte en oportunidades.
-            </p>
+
+            <div>
+
+              <h3 className="text-white font-semibold text-lg mb-5">
+                Seguinos
+              </h3>
+
+              <div className="flex gap-3">
+
+                <a
+                  href="mailto:sorteoscaballeros@gmail.com"
+                  aria-label="Gmail"
+                  className="w-11 h-11 flex items-center justify-center rounded-full bg-white/5 border border-white/10 text-gray-400 hover:bg-[#e21f26] hover:text-white hover:border-[#e21f26] transition-all duration-300 hover:-translate-y-1"
+                >
+                  <FaGoogle size={18} />
+                </a>
+
+
+                <a
+                  href="https://www.instagram.com/axelcaballeroo/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Instagram"
+                  className="w-11 h-11 flex items-center justify-center rounded-full bg-white/5 border border-white/10 text-gray-400 hover:bg-[#e21f26] hover:text-white hover:border-[#e21f26] transition-all duration-300 hover:-translate-y-1"
+                >
+                  <FaInstagram size={19} />
+                </a>
+
+
+                <a
+                  href="#"
+                  aria-label="Facebook"
+                  className="w-11 h-11 flex items-center justify-center rounded-full bg-white/5 border border-white/10 text-gray-400 hover:bg-[#e21f26] hover:text-white hover:border-[#e21f26] transition-all duration-300 hover:-translate-y-1"
+                >
+                  <FaFacebookF size={17} />
+                </a>
+
+              </div>
+
+            </div>
+
           </div>
 
-          {/* Social */}
-          <div>
-            <h3 className="text-white font-semibold text-lg mb-5">
-              Seguinos
-            </h3>
 
-            <div className="flex gap-3">
+          <div className="border-t border-white/10 my-10" />
 
-              {/* Gmail */}
-              <a
-                href="mailto:sorteoscaballeros@gmail.com"
-                aria-label="Gmail"
-                className="w-11 h-11 flex items-center justify-center rounded-full
-                bg-white/5 border border-white/10 text-gray-400
-                hover:bg-[#e21f26] hover:text-white hover:border-[#e21f26]
-                transition-all duration-300 hover:-translate-y-1"
-              >
-                <FaGoogle size={18} />
-              </a>
 
-              {/* Instagram */}
-              <a
-                href="https://www.instagram.com/axelcaballeroo/"
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Instagram"
-                className="w-11 h-11 flex items-center justify-center rounded-full
-                bg-white/5 border border-white/10 text-gray-400
-                hover:bg-[#e21f26] hover:text-white hover:border-[#e21f26]
-                transition-all duration-300 hover:-translate-y-1"
-              >
-                <FaInstagram size={19} />
-              </a>
+          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
 
-              {/* Facebook */}
+            <p className="text-sm text-gray-500">
+              © {new Date().getFullYear()} Motor Win. Todos los derechos reservados.
+            </p>
+
+            <div className="flex gap-6 text-sm text-gray-500">
+
               <a
                 href="#"
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Facebook"
-                className="w-11 h-11 flex items-center justify-center rounded-full
-                bg-white/5 border border-white/10 text-gray-400
-                hover:bg-[#e21f26] hover:text-white hover:border-[#e21f26]
-                transition-all duration-300 hover:-translate-y-1"
+                className="hover:text-white transition-colors"
               >
-                <FaFacebookF size={17} />
+                Términos y condiciones
+              </a>
+
+              <a
+                href="#"
+                className="hover:text-white transition-colors"
+              >
+                Política de privacidad
               </a>
 
             </div>
-          </div>
-        </div>
 
-        {/* Divider */}
-        <div className="border-t border-white/10 my-10" />
-
-        {/* Bottom */}
-        <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-
-          <p className="text-sm text-gray-500">
-            © {new Date().getFullYear()} Motor Win. Todos los derechos reservados.
-          </p>
-
-          <div className="flex gap-6 text-sm text-gray-500">
-            <a
-              href="#"
-              className="hover:text-white transition-colors"
-            >
-              Términos y condiciones
-            </a>
-
-            <a
-              href="#"
-              className="hover:text-white transition-colors"
-            >
-              Política de privacidad
-            </a>
           </div>
 
         </div>
-      </div>
-      
-    </footer>
+
+      </footer>
 
     </div>
   );
 }
 
 export default Sorteo;
+
