@@ -13,7 +13,13 @@ import {
 
 function Sorteo() {
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
-  const [mostrarChat, setMostrarChat] = useState(true);
+  // ==========================================
+  // FIX: el chat arranca CERRADO. Antes arrancaba
+  // en `true` y, apenas se mostraba la pantalla de
+  // "pedido realizado", se abría solo y tapaba el
+  // CBU / monto / pasos a seguir (sobre todo en mobile).
+  // ==========================================
+  const [mostrarChat, setMostrarChat] = useState(false);
   const [pedidoRealizado, setPedidoRealizado] = useState(false);
   const [procesando, setProcesando] = useState(false);
 
@@ -339,7 +345,7 @@ const handleSeleccionarComprobante = (
     setComprobante(null);
     setResultadoPago(null);
     setAnalizandoComprobante(false);
-    setMostrarChat(true);
+    setMostrarChat(false);
   };
 
   // ==========================================
@@ -645,7 +651,14 @@ const handleSeleccionarComprobante = (
                 </div>
 
 
-                
+                {/* FIX: este botón antes no existía (div vacío),
+                    era la única forma de reabrir el chat una vez cerrado */}
+                <button
+                  onClick={() => setMostrarChat(true)}
+                  className="shrink-0 w-full sm:w-auto px-6 py-3 rounded-lg bg-[#e21f26] text-white font-semibold hover:bg-[#b3161c] transition whitespace-nowrap"
+                >
+                  💬 {mostrarChat ? "Chat abierto" : "Abrir chat"}
+                </button>
 
               </div>
 
@@ -710,13 +723,34 @@ const handleSeleccionarComprobante = (
         </main>
 
 
+        {/* FIX: botón flotante (FAB) para abrir el chat cuando está cerrado.
+            Antes, si el usuario lo cerraba, no había forma de volver a
+            abrirlo desde acá abajo. */}
+
+        {!mostrarChat && (
+
+          <button
+            onClick={() => setMostrarChat(true)}
+            aria-label="Abrir chat de ayuda"
+            className="fixed bottom-5 right-5 z-[100] w-14 h-14 rounded-full bg-[#e21f26] text-white text-2xl shadow-2xl shadow-black/40 flex items-center justify-center hover:bg-[#b3161c] transition"
+          >
+            💬
+          </button>
+
+        )}
+
+
         {/* CHAT FLOTANTE */}
 
     
 
 {mostrarChat && (
 
-  <div className="fixed bottom-5 right-5 z-[100] w-[calc(100vw-40px)] sm:w-[390px] max-h-[75vh] bg-[#141414] border border-[#2a2a2a] rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+  // FIX: en mobile ahora usa left-4/right-4/bottom-4 en vez de
+  // w-[calc(100vw-40px)] pegado a un solo borde, y baja un poco el
+  // max-h para que no tape toda la pantalla. Como además ya no se
+  // abre solo, el usuario siempre ve primero los datos de transferencia.
+  <div className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-5 sm:bottom-5 z-[100] sm:w-[390px] max-h-[70vh] sm:max-h-[75vh] bg-[#141414] border border-[#2a2a2a] rounded-2xl shadow-2xl overflow-hidden flex flex-col">
 
     {/* HEADER */}
 
@@ -1125,7 +1159,7 @@ const handleSeleccionarComprobante = (
 
             <p className="text-lg md:text-xl leading-7 text-[#c9c9c9] max-w-xl">
 
-              Participá ahora y llevate una de las tres Honda Wave 0KM.
+              Participá ahora y llevate una  Honda Wave.<br />
               Comprá tus chances y asegurá tu lugar en el sorteo más
               esperado del año.
 
@@ -1152,7 +1186,7 @@ const handleSeleccionarComprobante = (
                 <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 text-white text-lg md:text-xl font-bold">
 
                   <span>
-                    Jueves 24 de Septiembre de 2026
+                    Sabado 3 de Septiembre de 2026 
                   </span>
 
                   <span className="hidden sm:inline text-[#2a2a2a]">
@@ -1176,7 +1210,7 @@ const handleSeleccionarComprobante = (
                 }
                 className="w-full sm:w-fit flex items-center justify-center gap-2 px-5 py-3 rounded-lg border border-[#e21f26] text-[#e21f26] font-semibold hover:bg-[#e21f26]/10 transition relative z-10"
               >
-                ▶️ Ver sorteo en vivo por YouTube
+                ▶️ Ver sorteo en vivo por Instagram
               </button>
 
             </div>
@@ -1773,7 +1807,7 @@ const handleSeleccionarComprobante = (
 
 
                 <a
-                  href="#"
+                  href="https://www.facebook.com/iara.salvatierra.12"
                   aria-label="Facebook"
                   className="w-11 h-11 flex items-center justify-center rounded-full bg-white/5 border border-white/10 text-gray-400 hover:bg-[#e21f26] hover:text-white hover:border-[#e21f26] transition-all duration-300 hover:-translate-y-1"
                 >
