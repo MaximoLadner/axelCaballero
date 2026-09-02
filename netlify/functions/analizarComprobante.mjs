@@ -472,20 +472,14 @@ Reglas:
       estado.includes("confirm");
 
 
-    const confianza =
-      Number(
-        resultadoIA.confianza || 0
-      );
-
+    const confianzaValida = Number(datos.confianza) >= 80;
 
     const aprobado =
-      esComprobante &&
-      montoCorrecto &&
-      cbuCorrecto &&
-      titularCorrecto &&
-      transferenciaExitosa &&
-      confianza >= 70;
-
+        datos.es_comprobante === true &&
+        montoValido &&
+        titularValido &&
+        cuentaValida &&
+        confianzaValida;
 
     // =================================================
     // APROBADO
