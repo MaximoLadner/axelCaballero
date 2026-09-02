@@ -301,6 +301,7 @@ Reglas:
             ],
 
             temperature: 0,
+            max_tokens: 1000,
           }),
         }
       );
