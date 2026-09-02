@@ -146,37 +146,22 @@ export default async (req) => {
     });
 
     const pagoEncontrado = datosMP.results?.find((pago) => {
-      const montoCoincide =
-        Number(pago.transaction_amount) === montoEsperado;
+  const montoCoincide = Number(pago.transaction_amount) === montoEsperado;
 
-      const emailPago =
-        pago.payer?.email?.trim().toLowerCase();
+  const fechaPago = new Date(pago.date_created);
+  const fechaCoincide = fechaPago >= fechaInicio;
 
-      const emailCoincide =
-        emailPago === emailParticipante;
+  console.log("Pago revisado:", {
+    id: pago.id,
+    monto: pago.transaction_amount,
+    email: pago.payer?.email,
+    fecha: pago.date_created,
+    montoCoincide,
+    fechaCoincide,
+  });
 
-      const fechaPago =
-        new Date(pago.date_created);
-
-      const fechaCoincide =
-        fechaPago >= fechaInicio;
-
-      console.log("Pago revisado:", {
-        id: pago.id,
-        monto: pago.transaction_amount,
-        email: emailPago,
-        fecha: pago.date_created,
-        montoCoincide,
-        emailCoincide,
-        fechaCoincide,
-      });
-
-      return (
-        montoCoincide &&
-        emailCoincide &&
-        fechaCoincide
-      );
-    });
+  return montoCoincide && fechaCoincide;
+});
 
     if (!pagoEncontrado) {
       console.log("❌ NO SE ENCONTRÓ EL PAGO");
