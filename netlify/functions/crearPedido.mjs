@@ -1,11 +1,6 @@
 
 import { db } from "./firebase.mjs";
-import {
-  doc,
-  runTransaction,
-  collection,
-  serverTimestamp,
-} from "firebase-admin/firestore";
+import { FieldValue } from "firebase-admin/firestore";
 
 // =====================================================
 // PROMOCIONES
@@ -33,7 +28,6 @@ const PROMOCIONES = {
 // CONFIGURACIÓN
 // =====================================================
 
-const NUMERO_INICIAL = 1;
 const NUMERO_MAXIMO = 999999;
 
 
@@ -47,8 +41,6 @@ function generarNumero(numero) {
 
 
 function generarPedidoId() {
-  // Ejemplo: MW-20260902-48321
-
   const fecha = new Date();
 
   const año = fecha.getFullYear();
@@ -105,7 +97,6 @@ export const handler = async (event) => {
   // ---------------------------------------------------
 
   if (event.httpMethod !== "POST") {
-
     return {
       statusCode: 405,
       headers,
@@ -113,7 +104,6 @@ export const handler = async (event) => {
         error: "Método no permitido.",
       }),
     };
-
   }
 
 
@@ -126,21 +116,18 @@ export const handler = async (event) => {
     let body;
 
     try {
-
       body = JSON.parse(
         event.body || "{}"
       );
-
     } catch {
-
       return {
         statusCode: 400,
         headers,
         body: JSON.stringify({
-          error: "El cuerpo de la solicitud no es válido.",
+          error:
+            "El cuerpo de la solicitud no es válido.",
         }),
       };
-
     }
 
 
@@ -162,7 +149,6 @@ export const handler = async (event) => {
       !telefono ||
       !promocionId
     ) {
-
       return {
         statusCode: 400,
         headers,
@@ -171,12 +157,11 @@ export const handler = async (event) => {
             "Nombre, email, teléfono y promoción son obligatorios.",
         }),
       };
-
     }
 
 
     // -------------------------------------------------
-    // VALIDAR PROMOCIÓN DESDE SERVIDOR
+    // VALIDAR PROMOCIÓN
     // -------------------------------------------------
 
     const promocion =
@@ -184,7 +169,6 @@ export const handler = async (event) => {
 
 
     if (!promocion) {
-
       return {
         statusCode: 400,
         headers,
@@ -193,34 +177,27 @@ export const handler = async (event) => {
             "La promoción seleccionada no existe.",
         }),
       };
-
     }
 
 
     // -------------------------------------------------
-    // REFERENCIA A CONFIGURACIÓN DEL SORTEO
+    // REFERENCIAS FIRESTORE
     // -------------------------------------------------
 
-    const configuracionRef = doc(
-      db,
-      "configuracion",
-      "sorteo"
-    );
+    const configuracionRef =
+      db
+        .collection("configuracion")
+        .doc("sorteo");
 
-
-    // -------------------------------------------------
-    // GENERAR PEDIDO
-    // -------------------------------------------------
 
     const pedidoId =
       generarPedidoId();
 
 
-    const pedidoRef = doc(
-      db,
-      "pedidos",
-      pedidoId
-    );
+    const pedidoRef =
+      db
+        .collection("pedidos")
+        .doc(pedidoId);
 
 
     // -------------------------------------------------
@@ -228,8 +205,7 @@ export const handler = async (event) => {
     // -------------------------------------------------
 
     const resultado =
-      await runTransaction(
-        db,
+      await db.runTransaction(
         async (transaction) => {
 
           const configuracionSnap =
@@ -245,10 +221,6 @@ export const handler = async (event) => {
               : 0;
 
 
-          const primerNumero =
-            ultimoNumero + 1;
-
-
           const ultimoNumeroNecesario =
             ultimoNumero +
             promocion.cantidadNumeros;
@@ -262,11 +234,9 @@ export const handler = async (event) => {
             ultimoNumeroNecesario >
             NUMERO_MAXIMO
           ) {
-
             throw new Error(
               "No quedan números disponibles para esta promoción."
             );
-
           }
 
 
@@ -281,13 +251,11 @@ export const handler = async (event) => {
             i <= promocion.cantidadNumeros;
             i++
           ) {
-
             numeros.push(
               generarNumero(
                 ultimoNumero + i
               )
             );
-
           }
 
 
@@ -344,10 +312,10 @@ export const handler = async (event) => {
                 "pendiente",
 
               fechaCreacion:
-                serverTimestamp(),
+                FieldValue.serverTimestamp(),
 
               fechaInicioPago:
-                serverTimestamp(),
+                FieldValue.serverTimestamp(),
             }
           );
 
@@ -359,7 +327,6 @@ export const handler = async (event) => {
             cantidadNumeros:
               promocion.cantidadNumeros,
           };
-
         }
       );
 
@@ -409,7 +376,6 @@ export const handler = async (event) => {
           "No se pudo crear el pedido.",
       }),
     };
-
   }
 };
 
