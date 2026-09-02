@@ -1,8 +1,6 @@
 
 import { db } from "./firebase.js";
-import {
-  FieldValue,
-} from "firebase-admin/firestore";
+import { FieldValue } from "firebase-admin/firestore";
 import nodemailer from "nodemailer";
 
 export const handler = async (event) => {
@@ -62,7 +60,8 @@ export const handler = async (event) => {
       montoEsperado: participante.montoEsperado,
       estadoPago: participante.estadoPago,
       fechaInicioPago:
-        participante.fechaInicioPago?.toDate?.() || participante.fechaInicioPago,
+        participante.fechaInicioPago?.toDate?.() ||
+        participante.fechaInicioPago,
     });
 
     // ==========================================
@@ -99,23 +98,22 @@ export const handler = async (event) => {
     ayer.setDate(ayer.getDate() - 1);
     ayer.setHours(0, 0, 0, 0);
 
-    const fechaDesdeMP = ayer.toISOString();
-
     console.log("=================================");
-    console.log("BUSCANDO PAGOS EN MERCADO PAGO");
+    console.log("FILTRO DE FECHA");
     console.log("=================================");
-    console.log("Buscar desde:", fechaDesdeMP);
+    console.log("Ignorando pagos anteriores a:", ayer.toISOString());
 
     // ==========================================
-    // BUSCAR PAGOS APROBADOS DESDE AYER
+    // BUSCAR PAGOS APROBADOS EN MERCADO PAGO
     // ==========================================
     const urlMP =
       `https://api.mercadopago.com/v1/payments/search` +
       `?status=approved` +
       `&sort=date_created` +
       `&criteria=desc` +
-      `&begin_date=${encodeURIComponent(fechaDesdeMP)}` +
       `&limit=50`;
+
+    console.log("Consultando Mercado Pago...");
 
     const responseMP = await fetch(urlMP, {
       method: "GET",
@@ -141,9 +139,54 @@ export const handler = async (event) => {
 
     const dataMP = await responseMP.json();
 
-    const pagos = dataMP.results || [];
+    // ==========================================
+    // PAGOS RECIBIDOS
+    // ==========================================
+    const pagosRecibidos = dataMP.results || [];
 
-    console.log("Cantidad de pagos encontrados:", pagos.length);
+    console.log(
+      "Pagos recibidos desde Mercado Pago:",
+      pagosRecibidos.length
+    );
+
+    // ==========================================
+    // FILTRAR PAGOS DESDE AYER
+    // ==========================================
+    const pagos = pagosRecibidos.filter((payment) => {
+      if (!payment.date_created) {
+        return false;
+      }
+
+      const fechaPago = new Date(payment.date_created);
+
+      return fechaPago >= ayer;
+    });
+
+    console.log(
+      "Pagos después del filtro de ayer:",
+      pagos.length
+    );
+
+    // ==========================================
+    // MOSTRAR QUÉ PAGOS FUERON DESCARTADOS
+    // ==========================================
+    const pagosIgnorados = pagosRecibidos.filter((payment) => {
+      if (!payment.date_created) {
+        return true;
+      }
+
+      const fechaPago = new Date(payment.date_created);
+
+      return fechaPago < ayer;
+    });
+
+    for (const payment of pagosIgnorados) {
+      console.log("Pago ignorado por ser anterior a ayer:", {
+        id: payment.id,
+        monto: payment.transaction_amount,
+        fecha: payment.date_created,
+      });
+    }
 
     // ==========================================
     // DATOS DEL PARTICIPANTE
@@ -154,11 +197,16 @@ export const handler = async (event) => {
       ? participante.fechaInicioPago.toDate()
       : new Date(participante.fechaInicioPago);
 
-    console.log("Monto esperado:", montoEsperado);
-    console.log("Fecha desde participante:", fechaInicio);
+    console.log("=================================");
+    console.log("DATOS PARA COMPARAR");
+    console.log("=================================");
+    console.log({
+      montoEsperado,
+      fechaInicio,
+    });
 
     // ==========================================
-    // BUSCAR PAGO CORRESPONDIENTE
+    // BUSCAR PAGO COMPATIBLE
     // ==========================================
     let pagoEncontrado = null;
 
@@ -167,16 +215,17 @@ export const handler = async (event) => {
       const fechaPago = new Date(payment.date_created);
 
       const montoCoincide = montoPago === montoEsperado;
+
+      // Además de ser posterior a ayer,
+      // debe ser posterior al momento en que
+      // comenzó el pago de este participante.
       const fechaCoincide = fechaPago >= fechaInicio;
 
-      console.log("=================================");
-      console.log("PAYMENT");
-      console.log("=================================");
-      console.log({
+      console.log("Pago revisado:", {
         id: payment.id,
         monto: montoPago,
-        email: payment.payer?.email,
         fecha: payment.date_created,
+        email: payment.payer?.email,
         montoCoincide,
         fechaCoincide,
       });
@@ -203,9 +252,10 @@ export const handler = async (event) => {
     }
 
     // ==========================================
-    // DATOS DEL PAGO
+    // DATOS DEL PAGO ENCONTRADO
     // ==========================================
     const paymentId = String(pagoEncontrado.id);
+
     const montoPagado = Number(
       pagoEncontrado.transaction_amount
     );
@@ -232,19 +282,20 @@ export const handler = async (event) => {
     if (!pagoUsadoSnap.empty) {
       const participanteUsado = pagoUsadoSnap.docs[0];
 
-      // Si el pago ya pertenece a ESTE participante
+      // El pago ya pertenece a este participante
       if (participanteUsado.id === participanteId) {
         return {
           statusCode: 200,
           body: JSON.stringify({
             aprobado: true,
             numeros: participante.numeros || [],
-            mensaje: "El pago ya estaba asociado al participante",
+            mensaje:
+              "El pago ya estaba asociado al participante",
           }),
         };
       }
 
-      // Si pertenece a OTRO participante
+      // El pago pertenece a otro participante
       console.log(
         "El paymentId ya fue utilizado por otro participante:",
         participanteUsado.id
@@ -262,83 +313,87 @@ export const handler = async (event) => {
     // ==========================================
     // ASIGNAR NÚMEROS EN UNA TRANSACCIÓN
     // ==========================================
-    const resultado = await db.runTransaction(async (transaction) => {
-      const participanteActualSnap =
-        await transaction.get(participanteRef);
+    const resultado = await db.runTransaction(
+      async (transaction) => {
+        const participanteActualSnap =
+          await transaction.get(participanteRef);
 
-      if (!participanteActualSnap.exists) {
-        throw new Error("Participante no encontrado");
-      }
+        if (!participanteActualSnap.exists) {
+          throw new Error("Participante no encontrado");
+        }
 
-      const participanteActual =
-        participanteActualSnap.data();
+        const participanteActual =
+          participanteActualSnap.data();
 
-      // Si mientras tanto otro proceso ya lo aprobó
-      if (participanteActual.estadoPago === "aprobado") {
+        // Si ya fue aprobado mientras procesábamos
+        if (participanteActual.estadoPago === "aprobado") {
+          return {
+            yaAprobado: true,
+            numeros: participanteActual.numeros || [],
+          };
+        }
+
+        // ==========================================
+        // CONFIGURACIÓN DEL SORTEO
+        // ==========================================
+        const sorteoRef = db
+          .collection("configuracion")
+          .doc("sorteo");
+
+        const sorteoSnap = await transaction.get(
+          sorteoRef
+        );
+
+        if (!sorteoSnap.exists) {
+          throw new Error(
+            "No existe configuracion/sorteo"
+          );
+        }
+
+        const sorteo = sorteoSnap.data();
+
+        let ultimoNumero = Number(
+          sorteo.ultimoNumero || 0
+        );
+
+        const cantidadNumeros = Number(
+          participanteActual.cantidadNumeros || 1
+        );
+
+        // ==========================================
+        // GENERAR NÚMEROS
+        // ==========================================
+        const numeros = [];
+
+        for (let i = 0; i < cantidadNumeros; i++) {
+          ultimoNumero++;
+          numeros.push(ultimoNumero);
+        }
+
+        // ==========================================
+        // ACTUALIZAR PARTICIPANTE
+        // ==========================================
+        transaction.update(participanteRef, {
+          numeros,
+          estadoPago: "aprobado",
+          paymentId,
+          montoPagado,
+          fechaPago: FieldValue.serverTimestamp(),
+        });
+
+        // ==========================================
+        // ACTUALIZAR ÚLTIMO NÚMERO
+        // ==========================================
+        transaction.update(sorteoRef, {
+          ultimoNumero,
+        });
+
         return {
-          yaAprobado: true,
-          numeros: participanteActual.numeros || [],
+          yaAprobado: false,
+          numeros,
         };
       }
-
-      // ==========================================
-      // CONFIGURACIÓN DEL SORTEO
-      // ==========================================
-      const sorteoRef = db
-        .collection("configuracion")
-        .doc("sorteo");
-
-      const sorteoSnap = await transaction.get(sorteoRef);
-
-      if (!sorteoSnap.exists) {
-        throw new Error(
-          "No existe configuracion/sorteo"
-        );
-      }
-
-      const sorteo = sorteoSnap.data();
-
-      let ultimoNumero = Number(
-        sorteo.ultimoNumero || 0
-      );
-
-      const cantidadNumeros = Number(
-        participanteActual.cantidadNumeros || 1
-      );
-
-      // ==========================================
-      // GENERAR NÚMEROS
-      // ==========================================
-      const numeros = [];
-
-      for (let i = 0; i < cantidadNumeros; i++) {
-        ultimoNumero++;
-        numeros.push(ultimoNumero);
-      }
-
-      // ==========================================
-      // ACTUALIZAR PARTICIPANTE
-      // ==========================================
-      transaction.update(participanteRef, {
-        numeros,
-        estadoPago: "aprobado",
-        paymentId,
-        montoPagado,
-        fechaPago: FieldValue.serverTimestamp(),
-      });
-
-      // ==========================================
-      // ACTUALIZAR ÚLTIMO NÚMERO
-      // ==========================================
-      transaction.update(sorteoRef, {
-        ultimoNumero,
-      });
-
-      return {
-        yaAprobado: false,
-        numeros,
-      };
-    });
+    );
 
     // ==========================================
     // SI YA ESTABA APROBADO
@@ -391,13 +446,16 @@ export const handler = async (event) => {
           await transporter.sendMail({
             from: `"Motor Win" <${emailUser}>`,
             to: participanteFinal.email,
-            subject: "🎉 ¡Tus números de Motor Win!",
+            subject:
+              "🎉 ¡Tus números de Motor Win!",
             html: `
               <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">
-                
+
                 <h1>🏎️ ¡Pago aprobado!</h1>
 
-                <p>Hola <strong>${participanteFinal.nombre}</strong> 👋</p>
+                <p>
+                  Hola <strong>${participanteFinal.nombre}</strong> 👋
+                </p>
 
                 <p>
                   Tu pago fue confirmado correctamente.
@@ -422,7 +480,9 @@ export const handler = async (event) => {
 
                 <p>
                   🏁 El sorteo se realizará el
-                  <strong>jueves 24 de septiembre de 2026 a las 22:00 hs.</strong>
+                  <strong>
+                    jueves 24 de septiembre de 2026 a las 22:00 hs.
+                  </strong>
                 </p>
 
                 <p>
