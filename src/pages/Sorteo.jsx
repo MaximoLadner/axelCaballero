@@ -40,7 +40,7 @@ function Sorteo() {
     setProcesando(true);
 
     const respuesta = await fetch(
-      "https://southamerica-east1-sorteos-web-93312.cloudfunctions.net/crearParticipantePendiente",
+      "/.netlify/functions/crearParticipantePendiente",
       {
         method: "POST",
 
@@ -148,7 +148,7 @@ function Sorteo() {
 
       const respuesta =
         await fetch(
-          "https://southamerica-east1-sorteos-web-93312.cloudfunctions.net/verificarPago",
+          "/.netlify/functions/verificarPago",
           {
             method: "POST",
 
