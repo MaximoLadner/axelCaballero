@@ -1,832 +1,484 @@
+
 import { db } from "./firebase.js";
-import { FieldValue } from "firebase-admin/firestore";
+import {
+  FieldValue,
+} from "firebase-admin/firestore";
 import nodemailer from "nodemailer";
 
-export default async (req) => {
-  console.log("========================================");
-  console.log("=== VERIFICAR PAGO INICIADO ===");
-  console.log("========================================");
-
-  // ==========================================
-  // SOLO POST
-  // ==========================================
-
-  if (req.method !== "POST") {
-    console.log("Método recibido:", req.method);
-
-    return new Response(
-      JSON.stringify({
-        error: "Método no permitido",
-      }),
-      {
-        status: 405,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      }
-    );
-  }
-
+export const handler = async (event) => {
   try {
     // ==========================================
-    // LEER BODY
+    // SOLO POST
     // ==========================================
+    if (event.httpMethod !== "POST") {
+      return {
+        statusCode: 405,
+        body: JSON.stringify({
+          error: "Método no permitido",
+        }),
+      };
+    }
 
-    const body = await req.json();
-
-    console.log("Body recibido:", {
-      participanteId: body?.participanteId,
-    });
-
-    const { participanteId } = body;
+    // ==========================================
+    // DATOS RECIBIDOS
+    // ==========================================
+    const { participanteId } = JSON.parse(event.body || "{}");
 
     if (!participanteId) {
-      console.log("❌ Falta participanteId");
-
-      return new Response(
-        JSON.stringify({
+      return {
+        statusCode: 400,
+        body: JSON.stringify({
           error: "Falta participanteId",
         }),
-        {
-          status: 400,
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
-      );
+      };
     }
 
     // ==========================================
     // BUSCAR PARTICIPANTE
     // ==========================================
-
     const participanteRef = db
       .collection("participantes")
       .doc(participanteId);
 
-    const participanteSnap =
-      await participanteRef.get();
-
-    console.log(
-      "Participante existe:",
-      participanteSnap.exists
-    );
+    const participanteSnap = await participanteRef.get();
 
     if (!participanteSnap.exists) {
-      console.log("❌ Participante no encontrado");
-
-      return new Response(
-        JSON.stringify({
+      return {
+        statusCode: 404,
+        body: JSON.stringify({
           error: "Participante no encontrado",
         }),
-        {
-          status: 404,
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
-      );
+      };
     }
 
-    const participante =
-      participanteSnap.data();
+    const participante = participanteSnap.data();
 
-    console.log(
-      "Participante encontrado:",
-      {
-        nombre: participante.nombre,
-        email: participante.email,
-        montoEsperado:
-          participante.montoEsperado,
-        cantidadNumeros:
-          participante.cantidadNumeros,
-        estadoPago:
-          participante.estadoPago,
-        fechaInicioPago:
-          participante.fechaInicioPago
-            ?.toDate?.(),
-      }
-    );
+    console.log("=================================");
+    console.log("PARTICIPANTE ENCONTRADO");
+    console.log("=================================");
+    console.log({
+      id: participanteId,
+      email: participante.email,
+      montoEsperado: participante.montoEsperado,
+      estadoPago: participante.estadoPago,
+      fechaInicioPago:
+        participante.fechaInicioPago?.toDate?.() || participante.fechaInicioPago,
+    });
 
     // ==========================================
     // SI YA ESTÁ APROBADO
     // ==========================================
-
-    if (
-      participante.estadoPago ===
-      "aprobado"
-    ) {
-      console.log(
-        "✅ El participante ya estaba aprobado"
-      );
-
-      return new Response(
-        JSON.stringify({
+    if (participante.estadoPago === "aprobado") {
+      return {
+        statusCode: 200,
+        body: JSON.stringify({
           aprobado: true,
-          numeros:
-            participante.numeros || [],
-          montoPagado:
-            participante.montoPagado || 0,
+          numeros: participante.numeros || [],
+          mensaje: "El pago ya había sido aprobado",
         }),
-        {
-          status: 200,
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
-      );
+      };
     }
 
     // ==========================================
-    // MERCADO PAGO
+    // MERCADO PAGO TOKEN
     // ==========================================
-
-    const accessToken =
-      process.env.MERCADOPAGO_ACCESS_TOKEN;
-
-    console.log(
-      "Mercado Pago token configurado:",
-      !!accessToken
-    );
+    const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
 
     if (!accessToken) {
       throw new Error(
-        "Falta MERCADOPAGO_ACCESS_TOKEN en Netlify"
+        "Falta MERCADOPAGO_ACCESS_TOKEN en las variables de entorno"
       );
     }
 
-    console.log(
-      "Consultando Mercado Pago..."
-    );
+    // ==========================================
+    // FECHA DE AYER
+    // ==========================================
+    const ahora = new Date();
 
-    const respuestaMP = await fetch(
-      "https://api.mercadopago.com/v1/payments/search?status=approved&sort=date_created&criteria=desc&limit=50",
-      {
-        method: "GET",
-        headers: {
-          Authorization:
-            `Bearer ${accessToken}`,
-          "Content-Type":
-            "application/json",
-        },
-      }
-    );
+    const ayer = new Date(ahora);
+    ayer.setDate(ayer.getDate() - 1);
+    ayer.setHours(0, 0, 0, 0);
 
-    console.log(
-      "Respuesta Mercado Pago:",
-      respuestaMP.status,
-      respuestaMP.statusText
-    );
+    const fechaDesdeMP = ayer.toISOString();
 
-    const datosMP =
-      await respuestaMP.json();
+    console.log("=================================");
+    console.log("BUSCANDO PAGOS EN MERCADO PAGO");
+    console.log("=================================");
+    console.log("Buscar desde:", fechaDesdeMP);
 
-    if (!respuestaMP.ok) {
-      console.log(
-        "❌ Error Mercado Pago:",
-        datosMP
-      );
+    // ==========================================
+    // BUSCAR PAGOS APROBADOS DESDE AYER
+    // ==========================================
+    const urlMP =
+      `https://api.mercadopago.com/v1/payments/search` +
+      `?status=approved` +
+      `&sort=date_created` +
+      `&criteria=desc` +
+      `&begin_date=${encodeURIComponent(fechaDesdeMP)}` +
+      `&limit=50`;
 
-      throw new Error(
-        `Mercado Pago respondió ${respuestaMP.status}`
-      );
+    const responseMP = await fetch(urlMP, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!responseMP.ok) {
+      const errorText = await responseMP.text();
+
+      console.error("Error Mercado Pago:", errorText);
+
+      return {
+        statusCode: 500,
+        body: JSON.stringify({
+          error: "Error consultando Mercado Pago",
+          detalle: errorText,
+        }),
+      };
     }
 
-    const pagos =
-      datosMP.results || [];
+    const dataMP = await responseMP.json();
 
-    console.log(
-      "Cantidad de pagos encontrados:",
-      pagos.length
-    );
+    const pagos = dataMP.results || [];
+
+    console.log("Cantidad de pagos encontrados:", pagos.length);
 
     // ==========================================
-    // DATOS PARA BUSCAR EL PAGO
+    // DATOS DEL PARTICIPANTE
     // ==========================================
+    const montoEsperado = Number(participante.montoEsperado);
 
-    const fechaInicio =
-      participante.fechaInicioPago
-        ?.toDate?.() || new Date(0);
+    const fechaInicio = participante.fechaInicioPago?.toDate
+      ? participante.fechaInicioPago.toDate()
+      : new Date(participante.fechaInicioPago);
 
-    const montoEsperado =
-      Number(
-        participante.montoEsperado
-      );
-
-    console.log(
-      "Buscando coincidencia:",
-      {
-        monto: montoEsperado,
-        desde: fechaInicio,
-      }
-    );
+    console.log("Monto esperado:", montoEsperado);
+    console.log("Fecha desde participante:", fechaInicio);
 
     // ==========================================
-    // BUSCAR PAGO APROBADO
-    //
-    // IMPORTANTE:
-    // NO usamos email del comprador.
-    //
-    // Buscamos:
-    // 1. Estado approved
-    // 2. Monto correcto
-    // 3. Pago realizado después
-    //    de que se creó el participante
+    // BUSCAR PAGO CORRESPONDIENTE
     // ==========================================
-
     let pagoEncontrado = null;
 
-    for (const pago of pagos) {
-      const montoPago =
-        Number(
-          pago.transaction_amount
-        );
+    for (const payment of pagos) {
+      const montoPago = Number(payment.transaction_amount);
+      const fechaPago = new Date(payment.date_created);
 
-      const fechaPago =
-        new Date(
-          pago.date_created
-        );
+      const montoCoincide = montoPago === montoEsperado;
+      const fechaCoincide = fechaPago >= fechaInicio;
 
-      const montoCoincide =
-        montoPago ===
-        montoEsperado;
+      console.log("=================================");
+      console.log("PAYMENT");
+      console.log("=================================");
+      console.log({
+        id: payment.id,
+        monto: montoPago,
+        email: payment.payer?.email,
+        fecha: payment.date_created,
+        montoCoincide,
+        fechaCoincide,
+      });
 
-      const fechaCoincide =
-        fechaPago >=
-        fechaInicio;
-
-      console.log(
-        "Pago revisado:",
-        {
-          id: pago.id,
-          monto:
-            pago.transaction_amount,
-          fecha:
-            pago.date_created,
-          email:
-            pago.payer?.email,
-          montoCoincide,
-          fechaCoincide,
-        }
-      );
-
-      if (
-        montoCoincide &&
-        fechaCoincide
-      ) {
-        pagoEncontrado = pago;
+      if (montoCoincide && fechaCoincide) {
+        pagoEncontrado = payment;
         break;
       }
     }
 
     // ==========================================
-    // NO ENCONTRADO
+    // NO SE ENCONTRÓ PAGO
     // ==========================================
-
     if (!pagoEncontrado) {
-      console.log(
-        "❌ NO SE ENCONTRÓ EL PAGO"
-      );
+      console.log("No se encontró ningún pago compatible.");
 
-      return new Response(
-        JSON.stringify({
+      return {
+        statusCode: 200,
+        body: JSON.stringify({
           aprobado: false,
-          mensaje:
-            "Todavía no se encontró un pago aprobado correspondiente.",
+          mensaje: "Pago todavía no encontrado",
         }),
-        {
-          status: 200,
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
-        }
-      );
+      };
     }
 
-    console.log(
-      "========================================"
-    );
-
-    console.log(
-      "✅ PAGO ENCONTRADO"
-    );
-
-    console.log(
-      "Payment ID:",
-      pagoEncontrado.id
-    );
-
-    console.log(
-      "Monto:",
+    // ==========================================
+    // DATOS DEL PAGO
+    // ==========================================
+    const paymentId = String(pagoEncontrado.id);
+    const montoPagado = Number(
       pagoEncontrado.transaction_amount
     );
 
-    console.log(
-      "Fecha:",
-      pagoEncontrado.date_created
-    );
-
-    console.log(
-      "========================================"
-    );
+    console.log("=================================");
+    console.log("PAGO ENCONTRADO");
+    console.log("=================================");
+    console.log({
+      paymentId,
+      montoPagado,
+      email: pagoEncontrado.payer?.email,
+      fecha: pagoEncontrado.date_created,
+    });
 
     // ==========================================
-    // EVITAR USAR EL MISMO PAGO DOS VECES
+    // VERIFICAR QUE EL PAYMENT ID NO ESTÉ USADO
     // ==========================================
+    const pagoUsadoSnap = await db
+      .collection("participantes")
+      .where("paymentId", "==", paymentId)
+      .limit(1)
+      .get();
 
-    const paymentId =
-      String(
-        pagoEncontrado.id
-      );
+    if (!pagoUsadoSnap.empty) {
+      const participanteUsado = pagoUsadoSnap.docs[0];
 
-    console.log(
-      "Comprobando si el paymentId ya fue utilizado..."
-    );
-
-    const pagoUsadoSnap =
-      await db
-        .collection("participantes")
-        .where(
-          "paymentId",
-          "==",
-          paymentId
-        )
-        .limit(1)
-        .get();
-
-    if (
-      !pagoUsadoSnap.empty
-    ) {
-      const participantePagoUsado =
-        pagoUsadoSnap.docs[0];
-
-      console.log(
-        "⚠️ Este pago ya fue utilizado por:",
-        participantePagoUsado.id
-      );
-
-      // Si el pago ya pertenece al mismo participante,
-      // no hacemos nada más.
-
-      if (
-        participantePagoUsado.id ===
-        participanteId
-      ) {
-        console.log(
-          "El pago pertenece al mismo participante."
-        );
-      } else {
-        return new Response(
-          JSON.stringify({
-            aprobado: false,
-            mensaje:
-              "Este pago ya fue utilizado.",
+      // Si el pago ya pertenece a ESTE participante
+      if (participanteUsado.id === participanteId) {
+        return {
+          statusCode: 200,
+          body: JSON.stringify({
+            aprobado: true,
+            numeros: participante.numeros || [],
+            mensaje: "El pago ya estaba asociado al participante",
           }),
-          {
-            status: 200,
-            headers: {
-              "Content-Type":
-                "application/json",
-            },
-          }
-        );
+        };
       }
+
+      // Si pertenece a OTRO participante
+      console.log(
+        "El paymentId ya fue utilizado por otro participante:",
+        participanteUsado.id
+      );
+
+      return {
+        statusCode: 200,
+        body: JSON.stringify({
+          aprobado: false,
+          mensaje: "Este pago ya fue utilizado",
+        }),
+      };
     }
 
     // ==========================================
-    // ASIGNAR NÚMEROS
+    // ASIGNAR NÚMEROS EN UNA TRANSACCIÓN
     // ==========================================
+    const resultado = await db.runTransaction(async (transaction) => {
+      const participanteActualSnap =
+        await transaction.get(participanteRef);
 
-    console.log(
-      "Iniciando transacción Firestore..."
-    );
+      if (!participanteActualSnap.exists) {
+        throw new Error("Participante no encontrado");
+      }
 
-    const resultado =
-      await db.runTransaction(
-        async (transaction) => {
-          // --------------------------------------
-          // VOLVER A LEER PARTICIPANTE
-          // --------------------------------------
+      const participanteActual =
+        participanteActualSnap.data();
 
-          const participanteActual =
-            await transaction.get(
-              participanteRef
-            );
+      // Si mientras tanto otro proceso ya lo aprobó
+      if (participanteActual.estadoPago === "aprobado") {
+        return {
+          yaAprobado: true,
+          numeros: participanteActual.numeros || [],
+        };
+      }
 
-          if (
-            !participanteActual.exists
-          ) {
-            throw new Error(
-              "El participante ya no existe."
-            );
-          }
+      // ==========================================
+      // CONFIGURACIÓN DEL SORTEO
+      // ==========================================
+      const sorteoRef = db
+        .collection("configuracion")
+        .doc("sorteo");
 
-          const datosActuales =
-            participanteActual.data();
+      const sorteoSnap = await transaction.get(sorteoRef);
 
-          // --------------------------------------
-          // EVITAR DOBLE PROCESAMIENTO
-          // --------------------------------------
+      if (!sorteoSnap.exists) {
+        throw new Error(
+          "No existe configuracion/sorteo"
+        );
+      }
 
-          if (
-            datosActuales.estadoPago ===
-            "aprobado"
-          ) {
-            console.log(
-              "El participante ya fue aprobado durante la transacción."
-            );
+      const sorteo = sorteoSnap.data();
 
-            return {
-              numeros:
-                datosActuales.numeros ||
-                [],
-              montoPagado:
-                datosActuales.montoPagado ||
-                0,
-            };
-          }
-
-          // --------------------------------------
-          // CONFIGURACIÓN DEL SORTEO
-          // --------------------------------------
-
-          const configRef =
-            db
-              .collection(
-                "configuracion"
-              )
-              .doc("sorteo");
-
-          const configSnap =
-            await transaction.get(
-              configRef
-            );
-
-          const config =
-            configSnap.exists
-              ? configSnap.data()
-              : {};
-
-          let ultimoNumero =
-            Number(
-              config.ultimoNumero ||
-                0
-            );
-
-          // --------------------------------------
-          // CANTIDAD DE NÚMEROS
-          // --------------------------------------
-
-          const cantidad =
-            Number(
-              datosActuales
-                .cantidadNumeros ||
-                1
-            );
-
-          const nuevosNumeros =
-            [];
-
-          // --------------------------------------
-          // GENERAR NÚMEROS
-          // --------------------------------------
-
-          for (
-            let i = 0;
-            i < cantidad;
-            i++
-          ) {
-            ultimoNumero++;
-
-            nuevosNumeros.push(
-              ultimoNumero
-            );
-          }
-
-          console.log(
-            "Nuevos números:",
-            nuevosNumeros
-          );
-
-          // --------------------------------------
-          // ACTUALIZAR PARTICIPANTE
-          // --------------------------------------
-
-          transaction.update(
-            participanteRef,
-            {
-              estadoPago:
-                "aprobado",
-
-              numeros:
-                nuevosNumeros,
-
-              montoPagado:
-                pagoEncontrado.transaction_amount,
-
-              paymentId:
-                paymentId,
-
-              fechaPago:
-                FieldValue.serverTimestamp(),
-            }
-          );
-
-          // --------------------------------------
-          // ACTUALIZAR ÚLTIMO NÚMERO
-          // --------------------------------------
-
-          transaction.set(
-            configRef,
-            {
-              ultimoNumero:
-                ultimoNumero,
-            },
-            {
-              merge: true,
-            }
-          );
-
-          return {
-            numeros:
-              nuevosNumeros,
-
-            montoPagado:
-              pagoEncontrado.transaction_amount,
-          };
-        }
+      let ultimoNumero = Number(
+        sorteo.ultimoNumero || 0
       );
 
-    console.log(
-      "========================================"
-    );
-
-    console.log(
-      "✅ NÚMEROS ASIGNADOS:",
-      resultado.numeros
-    );
-
-    console.log(
-      "========================================"
-    );
-
-    // ==========================================
-    // OBTENER PARTICIPANTE ACTUALIZADO
-    // ==========================================
-
-    const participanteFinal =
-      await participanteRef.get();
-
-    const datosFinales =
-      participanteFinal.data();
-
-    // ==========================================
-    // EMAIL
-    // ==========================================
-
-    if (
-      !datosFinales.emailEnviado
-    ) {
-      console.log(
-        "Preparando envío de email..."
+      const cantidadNumeros = Number(
+        participanteActual.cantidadNumeros || 1
       );
 
-      console.log(
-        "Email destino:",
-        datosFinales.email
-      );
+      // ==========================================
+      // GENERAR NÚMEROS
+      // ==========================================
+      const numeros = [];
 
-      await enviarEmailNumeros(
-        datosFinales,
-        resultado.numeros,
-        resultado.montoPagado
-      );
+      for (let i = 0; i < cantidadNumeros; i++) {
+        ultimoNumero++;
+        numeros.push(ultimoNumero);
+      }
 
-      await participanteRef.update({
-        emailEnviado: true,
+      // ==========================================
+      // ACTUALIZAR PARTICIPANTE
+      // ==========================================
+      transaction.update(participanteRef, {
+        numeros,
+        estadoPago: "aprobado",
+        paymentId,
+        montoPagado,
+        fechaPago: FieldValue.serverTimestamp(),
       });
 
-      console.log(
-        "✅ EMAIL ENVIADO CORRECTAMENTE"
-      );
-    } else {
-      console.log(
-        "El email ya había sido enviado."
+      // ==========================================
+      // ACTUALIZAR ÚLTIMO NÚMERO
+      // ==========================================
+      transaction.update(sorteoRef, {
+        ultimoNumero,
+      });
+
+      return {
+        yaAprobado: false,
+        numeros,
+      };
+    });
+
+    // ==========================================
+    // SI YA ESTABA APROBADO
+    // ==========================================
+    if (resultado.yaAprobado) {
+      return {
+        statusCode: 200,
+        body: JSON.stringify({
+          aprobado: true,
+          numeros: resultado.numeros,
+        }),
+      };
+    }
+
+    const numerosAsignados = resultado.numeros;
+
+    // ==========================================
+    // ENVIAR EMAIL
+    // ==========================================
+    try {
+      const participanteFinalSnap =
+        await participanteRef.get();
+
+      const participanteFinal =
+        participanteFinalSnap.data();
+
+      if (
+        participanteFinal &&
+        participanteFinal.emailEnviado !== true
+      ) {
+        const emailUser = process.env.EMAIL_USER;
+        const emailPass = process.env.EMAIL_PASS;
+
+        if (!emailUser || !emailPass) {
+          console.error(
+            "Faltan EMAIL_USER o EMAIL_PASS"
+          );
+        } else {
+          const transporter = nodemailer.createTransport({
+            service: "gmail",
+            auth: {
+              user: emailUser,
+              pass: emailPass,
+            },
+          });
+
+          const numerosTexto =
+            numerosAsignados.join(", ");
+
+          await transporter.sendMail({
+            from: `"Motor Win" <${emailUser}>`,
+            to: participanteFinal.email,
+            subject: "🎉 ¡Tus números de Motor Win!",
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">
+                
+                <h1>🏎️ ¡Pago aprobado!</h1>
+
+                <p>Hola <strong>${participanteFinal.nombre}</strong> 👋</p>
+
+                <p>
+                  Tu pago fue confirmado correctamente.
+                </p>
+
+                <p>
+                  Estos son tus números para el sorteo:
+                </p>
+
+                <div style="
+                  background: #111;
+                  color: #fff;
+                  padding: 20px;
+                  border-radius: 10px;
+                  text-align: center;
+                  font-size: 28px;
+                  font-weight: bold;
+                  margin: 20px 0;
+                ">
+                  ${numerosTexto}
+                </div>
+
+                <p>
+                  🏁 El sorteo se realizará el
+                  <strong>jueves 24 de septiembre de 2026 a las 22:00 hs.</strong>
+                </p>
+
+                <p>
+                  ¡Mucha suerte! 🍀
+                </p>
+
+                <p>
+                  <strong>Motor Win</strong>
+                </p>
+
+              </div>
+            `,
+          });
+
+          await participanteRef.update({
+            emailEnviado: true,
+          });
+
+          console.log(
+            "Email enviado correctamente a:",
+            participanteFinal.email
+          );
+        }
+      }
+    } catch (emailError) {
+      console.error(
+        "Error enviando email:",
+        emailError
       );
     }
 
     // ==========================================
     // RESPUESTA FINAL
     // ==========================================
-
-    console.log(
-      "========================================"
-    );
-
-    console.log(
-      "🎉 VERIFICACIÓN COMPLETADA"
-    );
-
-    console.log(
-      "========================================"
-    );
-
-    return new Response(
-      JSON.stringify({
+    return {
+      statusCode: 200,
+      body: JSON.stringify({
         aprobado: true,
-
-        numeros:
-          resultado.numeros,
-
-        montoPagado:
-          resultado.montoPagado,
+        numeros: numerosAsignados,
+        montoPagado,
+        paymentId,
       }),
-      {
-        status: 200,
-        headers: {
-          "Content-Type":
-            "application/json",
-        },
-      }
-    );
+    };
   } catch (error) {
-    // ==========================================
-    // ERROR
-    // ==========================================
-
     console.error(
-      "========================================"
+      "ERROR GENERAL verificarPago:",
+      error
     );
 
-    console.error(
-      "❌ ERROR VERIFICAR PAGO:"
-    );
-
-    console.error(error);
-
-    console.error(
-      "========================================"
-    );
-
-    return new Response(
-      JSON.stringify({
-        error:
-          error?.message ||
-          "Error interno verificando el pago.",
+    return {
+      statusCode: 500,
+      body: JSON.stringify({
+        error: "Error verificando pago",
+        detalle: error.message,
       }),
-      {
-        status: 500,
-        headers: {
-          "Content-Type":
-            "application/json",
-        },
-      }
-    );
+    };
   }
 };
 
-// ==================================================
-// ENVIAR EMAIL
-// ==================================================
-
-async function enviarEmailNumeros(
-  participante,
-  numeros,
-  montoPagado
-) {
-  console.log(
-    "=== INICIANDO ENVÍO DE EMAIL ==="
-  );
-
-  const emailUser =
-    process.env.EMAIL_USER;
-
-  const emailPass =
-    process.env.EMAIL_PASS;
-
-  // -----------------------------------------------
-  // VALIDAR CREDENCIALES
-  // -----------------------------------------------
-
-  if (!emailUser) {
-    throw new Error(
-      "Falta EMAIL_USER en Netlify"
-    );
-  }
-
-  if (!emailPass) {
-    throw new Error(
-      "Falta EMAIL_PASS en Netlify"
-    );
-  }
-
-  // -----------------------------------------------
-  // CREAR TRANSPORTER
-  // -----------------------------------------------
-
-  const transporter =
-    nodemailer.createTransport({
-      service: "gmail",
-
-      auth: {
-        user: emailUser,
-        pass: emailPass,
-      },
-    });
-
-  // -----------------------------------------------
-  // CREAR HTML DE NÚMEROS
-  // -----------------------------------------------
-
-  const numerosHTML =
-    numeros
-      .map(
-        (numero) =>
-          `
-          <strong
-            style="
-              display:inline-block;
-              font-size:24px;
-              padding:10px 18px;
-              margin:5px;
-              border-radius:8px;
-              background:#f2f2f2;
-            "
-          >
-            ${numero}
-          </strong>
-          `
-      )
-      .join("");
-
-  // -----------------------------------------------
-  // ENVIAR
-  // -----------------------------------------------
-
-  await transporter.sendMail({
-    from:
-      `"Motor Win" <${emailUser}>`,
-
-    to:
-      participante.email,
-
-    subject:
-      "🎉 ¡Tus números de Motor Win!",
-
-    html: `
-      <div
-        style="
-          font-family:Arial,sans-serif;
-          max-width:600px;
-          margin:auto;
-          padding:20px;
-        "
-      >
-
-        <h2>
-          ¡Pago confirmado,
-          ${participante.nombre}!
-        </h2>
-
-        <p>
-          Tu pago fue aprobado
-          correctamente.
-        </p>
-
-        <p>
-          Tus números para el
-          sorteo son:
-        </p>
-
-        <div>
-          ${numerosHTML}
-        </div>
-
-        <p>
-          <strong>
-            Monto pagado:
-          </strong>
-          $${montoPagado}
-        </p>
-
-        <p>
-          El sorteo se realizará el
-          <strong>
-            jueves 24 de septiembre
-            de 2026 a las 22:00 hs.
-          </strong>
-        </p>
-
-        <p>
-          ¡Mucha suerte! 🏎️🔥
-        </p>
-
-      </div>
-    `,
-  });
-
-  console.log(
-    "=== EMAIL ENVIADO ==="
-  );
-}
