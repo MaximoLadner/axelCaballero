@@ -1,4 +1,3 @@
-
 import { useEffect, useRef, useState } from "react";
 
 import {
@@ -19,7 +18,6 @@ function Sorteo() {
   const [procesando, setProcesando] = useState(false);
 
   const [pedidoId, setPedidoId] = useState("");
-  const [numeros, setNumeros] = useState([]);
   const [monto, setMonto] = useState(0);
 
   const [nombre, setNombre] = useState("");
@@ -29,7 +27,7 @@ function Sorteo() {
 
   const promociones = obtenerPromociones();
 
-  const [comprobante, setComprobante] = useState(null); 
+  const [comprobante, setComprobante] = useState(null);
   const [analizandoComprobante, setAnalizandoComprobante] = useState(false);
   const [resultadoPago, setResultadoPago] = useState(null);
   const inputComprobanteRef = useRef(null);
@@ -46,6 +44,13 @@ function Sorteo() {
 
   // ==========================================
   // CREAR PEDIDO
+  // ==========================================
+  //
+  // IMPORTANTE: esto NO reserva números todavía. El pedido queda
+  // "pendiente de pago". Los números se generan y se envían por
+  // email recién cuando el comprobante es verificado y aprobado
+  // (eso se resuelve del lado del backend, en crearPedido.mjs /
+  // analizarComprobante.mjs).
   // ==========================================
 
   const handleSubmit = async (e) => {
@@ -94,7 +99,6 @@ function Sorteo() {
       // ==========================================
 
       setPedidoId(datos.pedidoId);
-      setNumeros(datos.numeros || []);
       setMonto(datos.monto || 0);
 
       localStorage.setItem(
@@ -110,7 +114,6 @@ function Sorteo() {
           email,
           telefono,
           promocionId,
-          numeros: datos.numeros || [],
           monto: datos.monto || 0,
         })
       );
@@ -238,7 +241,7 @@ const analizarComprobante = async (archivo) => {
     if (datos.aprobado) {
 
       alert(
-        "¡Pago aprobado! Tu participación quedó confirmada."
+        "¡Pago aprobado! Te enviamos tus números por email."
       );
 
     } else {
@@ -321,6 +324,25 @@ const handleSeleccionarComprobante = (
   };
 
   // ==========================================
+  // VOLVER A LA TIENDA (reset completo)
+  // ==========================================
+
+  const volverATienda = () => {
+    setPedidoRealizado(false);
+    setMostrarFormulario(false);
+    setPromocionId("");
+    setPedidoId("");
+    setMonto(0);
+    setNombre("");
+    setEmail("");
+    setTelefono("");
+    setComprobante(null);
+    setResultadoPago(null);
+    setAnalizandoComprobante(false);
+    setMostrarChat(true);
+  };
+
+  // ==========================================
   // PANTALLA PEDIDO REALIZADO
   // ==========================================
 
@@ -374,113 +396,31 @@ const handleSeleccionarComprobante = (
 
               <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-[#e21f26]/30 text-[#ff6259] bg-[#141414] text-sm font-semibold mb-5">
 
-                ✓ Pedido generado
+                ✓ Pedido registrado
 
               </div>
 
               <h1 className="text-3xl md:text-5xl font-extrabold text-white mb-4">
 
-                ¡Pedido realizado!
+                ¡Ya casi! Falta el pago
 
               </h1>
 
               <p className="text-[#c9c9c9] text-lg">
 
-                Tu pedido fue creado correctamente.
+                Tu pedido quedó registrado, pero todavía no tenés números asignados.
                 <br />
 
-                Ahora realizá la transferencia para confirmar tu participación.
+                Primero transferí el monto indicado abajo y subí el comprobante.
+                Una vez que lo verifiquemos, te enviamos tus números por email a{" "}
+                <strong className="text-white">{email}</strong>.
 
               </p>
 
             </div>
 
 
-            {/* NÚMEROS */}
-
-            <div className="bg-[#141414] border border-[#2a2a2a] rounded-2xl p-6 md:p-8 mb-6">
-
-              <div className="text-center mb-6">
-
-                <p className="text-[#8a8a8a] text-sm mb-2">
-                  Tus números asignados
-                </p>
-
-                <h2 className="text-xl md:text-2xl font-bold text-white">
-                  Se reservaron estos números para vos
-                </h2>
-
-              </div>
-
-
-              <div className="flex flex-wrap justify-center gap-3">
-
-                {numeros.map((numero) => (
-
-                  <div
-                    key={numero}
-                    className="min-w-[90px] px-5 py-4 rounded-xl bg-[#e21f26] text-white text-2xl font-extrabold shadow-lg shadow-[#e21f26]/20"
-                  >
-                    {numero}
-                  </div>
-
-                ))}
-
-              </div>
-
-            </div>
-
-
-            {/* DATOS DEL PEDIDO */}
-
-            <div className="bg-[#141414] border border-[#2a2a2a] rounded-2xl p-6 md:p-8 mb-6">
-
-              <div className="flex items-center justify-between gap-4 mb-6">
-
-                <div>
-
-                  <p className="text-[#8a8a8a] text-sm">
-                    Número de pedido
-                  </p>
-
-                  <p className="text-white font-bold text-xl">
-                    #{pedidoId}
-                  </p>
-
-                </div>
-
-
-                <div className="text-right">
-
-                  <p className="text-[#8a8a8a] text-sm">
-                    Estado
-                  </p>
-
-                  <span className="inline-flex mt-1 px-3 py-1 rounded-full bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 text-sm font-semibold">
-                    Pendiente de pago
-                  </span>
-
-                </div>
-
-              </div>
-
-
-              <div className="border-t border-[#2a2a2a] pt-5">
-
-                <p className="text-[#8a8a8a] text-sm mb-1">
-                  Monto a transferir
-                </p>
-
-                <p className="text-3xl font-extrabold text-[#e21f26]">
-                  ${monto.toLocaleString("es-AR")}
-                </p>
-
-              </div>
-
-            </div>
-
-
-            {/* TRANSFERENCIA */}
+            {/* TRANSFERENCIA — lo primero que hay que ver */}
 
             <div className="bg-[#141414] border border-[#e21f26]/40 rounded-2xl p-6 md:p-8 mb-6">
 
@@ -493,7 +433,7 @@ const handleSeleccionarComprobante = (
                   </div>
 
                   <h2 className="text-2xl font-bold text-white">
-                    Datos para transferencia
+                    1. Transferí a esta cuenta
                   </h2>
 
                 </div>
@@ -594,6 +534,80 @@ const handleSeleccionarComprobante = (
             </div>
 
 
+            {/* DATOS DEL PEDIDO */}
+
+            <div className="bg-[#141414] border border-[#2a2a2a] rounded-2xl p-6 md:p-8 mb-6">
+
+              <div className="flex items-center justify-between gap-4 mb-6">
+
+                <div>
+
+                  <p className="text-[#8a8a8a] text-sm">
+                    Número de pedido
+                  </p>
+
+                  <p className="text-white font-bold text-xl">
+                    #{pedidoId}
+                  </p>
+
+                </div>
+
+
+                <div className="text-right">
+
+                  <p className="text-[#8a8a8a] text-sm">
+                    Estado
+                  </p>
+
+                  <span className="inline-flex mt-1 px-3 py-1 rounded-full bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 text-sm font-semibold">
+                    Pendiente de pago
+                  </span>
+
+                </div>
+
+              </div>
+
+
+              <div className="border-t border-[#2a2a2a] pt-5">
+
+                <p className="text-[#8a8a8a] text-sm mb-1">
+                  Monto a transferir
+                </p>
+
+                <p className="text-3xl font-extrabold text-[#e21f26]">
+                  ${monto.toLocaleString("es-AR")}
+                </p>
+
+              </div>
+
+            </div>
+
+
+            {/* TUS NÚMEROS — todavía no existen, se avisa cómo se entregan */}
+
+            <div className="bg-[#141414] border border-[#2a2a2a] rounded-2xl p-6 md:p-8 mb-6">
+
+              <div className="text-center">
+
+                <div className="text-4xl mb-3">
+                  🔒
+                </div>
+
+                <h2 className="text-xl md:text-2xl font-bold text-white mb-2">
+                  2. Subí el comprobante para recibir tus números
+                </h2>
+
+                <p className="text-[#c9c9c9]">
+                  Tus números se generan recién cuando confirmamos que el comprobante
+                  es válido. Te los mandamos por email a{" "}
+                  <strong className="text-white">{email || "tu correo"}</strong>.
+                </p>
+
+              </div>
+
+            </div>
+
+
             {/* AVISO */}
 
             <div className="bg-[#1c1c1c] border border-[#2a2a2a] rounded-xl p-5 mb-6">
@@ -604,13 +618,14 @@ const handleSeleccionarComprobante = (
 
               <p className="text-[#c9c9c9] text-sm leading-relaxed">
                 Guardá una captura del comprobante y enviala por el chat.
-                Tu comprobante será revisado para confirmar el pago.
+                Vamos a verificar que sea original y coincida con el monto de tu
+                pedido antes de asignarte números.
               </p>
 
             </div>
 
 
-            {/* CHAT */}
+            {/* CHAT (en la página) */}
 
             <div className="bg-[#141414] border border-[#2a2a2a] rounded-2xl p-6 md:p-8 mb-6">
 
@@ -682,15 +697,7 @@ const handleSeleccionarComprobante = (
             <div className="text-center">
 
               <button
-                onClick={() => {
-                  setPedidoRealizado(false);
-                  setMostrarFormulario(false);
-                  setPromocionId("");
-                  setPedidoId("");
-                  setNumeros([]);
-                  setMonto(0);
-                  setMostrarChat(false);
-                }}
+                onClick={volverATienda}
                 className="px-6 py-3 rounded-lg border border-[#2a2a2a] text-[#c9c9c9] hover:border-[#e21f26] hover:text-white transition"
               >
                 ← Volver a la tienda
@@ -703,10 +710,9 @@ const handleSeleccionarComprobante = (
         </main>
 
 
-        {/* CHAT */}
+        {/* CHAT FLOTANTE */}
 
-        ```jsx
-{/* CHAT */}
+    
 
 {mostrarChat && (
 
@@ -765,12 +771,13 @@ const handleSeleccionarComprobante = (
 
         <p className="text-[#c9c9c9] text-sm leading-relaxed">
 
-          Tu pedido fue creado correctamente.
+          Todavía no tenés números asignados.
 
           <br />
 
-          Ahora realizá la transferencia por el monto
-          indicado y enviá el comprobante por acá.
+          Realizá la transferencia por el monto indicado y enviá acá el
+          comprobante para que verifiquemos el pago y te mandemos tus
+          números por email.
 
         </p>
 
@@ -843,7 +850,8 @@ const handleSeleccionarComprobante = (
 
               <br />
 
-              Tu participación quedó confirmada.
+              Te enviamos tus números asignados a{" "}
+              <strong className="text-white">{email}</strong>.
 
             </p>
 
@@ -972,11 +980,11 @@ const handleSeleccionarComprobante = (
         <div className="text-center">
 
           <p className="text-green-400 text-sm font-semibold">
-            ✓ Transferencia confirmada
+            ✓ Pago confirmado
           </p>
 
           <p className="text-[#666] text-xs mt-1">
-            Ya no necesitás enviar otro comprobante.
+            Revisá tu email — ahí te llegan tus números.
           </p>
 
         </div>
@@ -988,8 +996,6 @@ const handleSeleccionarComprobante = (
   </div>
 
 )}
-```
-
 
       </div>
     );
@@ -1265,7 +1271,7 @@ const handleSeleccionarComprobante = (
                   icono: "📸",
                   titulo: "Enviá el comprobante",
                   texto:
-                    "Mandanos el comprobante para verificar tu transferencia.",
+                    "Verificamos tu pago y te mandamos los números por email.",
                 },
               ].map((paso) => (
 
@@ -1651,8 +1657,9 @@ const handleSeleccionarComprobante = (
 
                   <p className="text-center text-xs text-[#8a8a8a]">
 
-                    Al continuar, se reservarán tus números y
-                    te mostraremos los datos para realizar la transferencia.
+                    Al continuar vas a ver los datos para hacer la transferencia.
+                    Tus números se asignan y te llegan por email recién después
+                    de que verifiquemos el comprobante de pago.
 
                   </p>
 
@@ -1818,4 +1825,3 @@ const handleSeleccionarComprobante = (
 }
 
 export default Sorteo;
-
