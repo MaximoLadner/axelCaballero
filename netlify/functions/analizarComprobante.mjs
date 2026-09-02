@@ -8,6 +8,9 @@ import { db } from "./firebase.mjs";
 const OPENROUTER_API_KEY =
   process.env.OPENROUTER_API_KEY;
 
+const OPENROUTER_URL =
+  "https://openrouter.ai/api/v1/chat/completions";
+
 const MODELO =
   "google/gemini-2.5-flash";
 
@@ -31,13 +34,13 @@ const headers = {
 
 
 // =====================================================
-// FUNCIÓN
+// HANDLER
 // =====================================================
 
 export const handler = async (event) => {
 
   // ---------------------------------------------------
-  // PREFLIGHT
+  // OPTIONS
   // ---------------------------------------------------
 
   if (event.httpMethod === "OPTIONS") {
@@ -50,7 +53,7 @@ export const handler = async (event) => {
 
 
   // ---------------------------------------------------
-  // SOLO POST
+  // POST
   // ---------------------------------------------------
 
   if (event.httpMethod !== "POST") {
@@ -67,18 +70,23 @@ export const handler = async (event) => {
   try {
 
     // -------------------------------------------------
-    // VALIDAR API KEY
+    // API KEY
     // -------------------------------------------------
 
     if (!OPENROUTER_API_KEY) {
-      throw new Error(
-        "Falta configurar OPENROUTER_API_KEY en Netlify."
-      );
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({
+          error:
+            "OPENROUTER_API_KEY no está configurada en Netlify.",
+        }),
+      };
     }
 
 
     // -------------------------------------------------
-    // LEER BODY
+    // BODY
     // -------------------------------------------------
 
     let body;
@@ -93,16 +101,17 @@ export const handler = async (event) => {
         headers,
         body: JSON.stringify({
           error:
-            "El cuerpo de la solicitud no es válido.",
+            "El JSON enviado no es válido.",
         }),
       };
     }
 
 
-    const {
-      pedidoId,
-      imagen,
-    } = body;
+    const pedidoId =
+      body.pedidoId;
+
+    const imagen =
+      body.imagen;
 
 
     // -------------------------------------------------
@@ -115,7 +124,7 @@ export const handler = async (event) => {
         headers,
         body: JSON.stringify({
           error:
-            "Falta el número de pedido.",
+            "Falta el pedidoId.",
         }),
       };
     }
@@ -127,7 +136,7 @@ export const handler = async (event) => {
         headers,
         body: JSON.stringify({
           error:
-            "Falta el comprobante.",
+            "Falta la imagen del comprobante.",
         }),
       };
     }
@@ -167,7 +176,7 @@ export const handler = async (event) => {
         headers,
         body: JSON.stringify({
           error:
-            "No encontramos el pedido indicado.",
+            "No encontramos ese pedido.",
         }),
       };
     }
@@ -191,47 +200,30 @@ export const handler = async (event) => {
           ok: true,
           aprobado: true,
           mensaje:
-            "Este pedido ya tiene el pago aprobado.",
+            "El pago ya fue aprobado anteriormente.",
         }),
       };
     }
 
-
-    // -------------------------------------------------
-    // MONTO REAL DEL PEDIDO
-    // -------------------------------------------------
 
     const montoEsperado =
       Number(pedido.monto);
 
 
-    if (
-      !montoEsperado ||
-      montoEsperado <= 0
-    ) {
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({
-          error:
-            "El pedido no tiene un monto válido.",
-        }),
-      };
-    }
-
-
     // -------------------------------------------------
-    // PROMPT PARA LA IA
+    // PROMPT
     // -------------------------------------------------
 
     const prompt = `
-Analizá cuidadosamente este comprobante de transferencia bancaria.
+Analizá esta imagen.
 
-Necesitamos extraer exclusivamente información visible en la imagen.
+Quiero saber si es un comprobante real de una transferencia bancaria.
 
-Devolvé ÚNICAMENTE un JSON válido, sin markdown, sin explicaciones y sin texto adicional.
+Extraé únicamente información que sea claramente visible.
 
-Formato obligatorio:
+Respondé ÚNICAMENTE con JSON válido.
+
+Formato:
 
 {
   "es_comprobante": true,
@@ -246,28 +238,27 @@ Formato obligatorio:
 
 Reglas:
 
-- "es_comprobante": true solamente si realmente parece un comprobante de transferencia.
-- "monto": importe transferido como número.
-- "titular_destino": nombre del destinatario de la transferencia.
-- "cbu_destino": CBU/CVU/identificador de la cuenta destinataria si aparece.
-- "fecha": fecha de la transferencia si aparece.
-- "hora": hora si aparece.
-- "estado": estado que aparece en el comprobante, por ejemplo "completada", "exitosa", "realizada", "aprobada", etc.
-- "confianza": número entre 0 y 100 indicando qué tan seguro estás de la extracción.
-- Si un dato no aparece claramente, dejalo como string vacío.
-- No inventes datos.
-- No confundas el CBU del emisor con el del destinatario.
-- No confundas el monto con el saldo disponible.
+1. es_comprobante debe ser true solamente si la imagen parece un comprobante de transferencia.
+2. monto debe ser el importe transferido.
+3. titular_destino debe ser el nombre del destinatario.
+4. cbu_destino debe ser el CBU/CVU/identificador de la cuenta destinataria si aparece.
+5. fecha debe ser la fecha visible.
+6. hora debe ser la hora visible.
+7. estado debe indicar el estado de la transferencia.
+8. confianza debe ser un número entre 0 y 100.
+9. No inventes información.
+10. Si un dato no aparece claramente, usá "".
+11. No confundas los datos del emisor con los del destinatario.
 `;
 
-    
+
     // -------------------------------------------------
     // OPENROUTER
     // -------------------------------------------------
 
-    const respuesta =
+    const openRouterResponse =
       await fetch(
-        "https://openrouter.ai/api/v1/chat/completions",
+        OPENROUTER_URL,
         {
           method: "POST",
 
@@ -315,19 +306,21 @@ Reglas:
       );
 
 
-    const datosIA =
-      await respuesta.json();
-
-
     // -------------------------------------------------
-    // ERROR OPENROUTER
+    // RESPUESTA OPENROUTER
     // -------------------------------------------------
 
-    if (!respuesta.ok) {
+    const openRouterData =
+      await openRouterResponse.json();
+
+
+    if (!openRouterResponse.ok) {
 
       console.error(
-        "ERROR OPENROUTER:",
-        datosIA
+        "OPENROUTER ERROR:",
+        JSON.stringify(
+          openRouterData
+        )
       );
 
       return {
@@ -335,72 +328,96 @@ Reglas:
         headers,
         body: JSON.stringify({
           error:
-            "No se pudo analizar el comprobante con la IA.",
+            "OpenRouter rechazó la solicitud.",
           detalle:
-            datosIA?.error?.message ||
-            "Error desconocido de OpenRouter.",
+            openRouterData?.error?.message ||
+            "Error desconocido.",
         }),
       };
     }
 
 
     // -------------------------------------------------
-    // OBTENER RESPUESTA
+    // TEXTO DE LA IA
     // -------------------------------------------------
 
     const contenido =
-      datosIA
+      openRouterData
         ?.choices?.[0]
         ?.message?.content;
 
 
     if (!contenido) {
       throw new Error(
-        "OpenRouter no devolvió una respuesta válida."
+        "OpenRouter no devolvió contenido."
       );
     }
 
 
-    // -------------------------------------------------
-    // LIMPIAR JSON
-    // -------------------------------------------------
-
-    let textoJSON =
+    console.log(
+      "RESPUESTA OPENROUTER:",
       contenido
-        .trim()
-        .replace(/^```json/i, "")
-        .replace(/^```/i, "")
-        .replace(/```$/i, "")
-        .trim();
+    );
 
 
-    let comprobante;
+    // -------------------------------------------------
+    // LIMPIAR RESPUESTA
+    // -------------------------------------------------
+
+    let texto =
+      String(contenido).trim();
+
+
+    if (
+      texto.startsWith("```")
+    ) {
+      texto =
+        texto
+          .replace(/^```json\s*/i, "")
+          .replace(/^```\s*/i, "")
+          .replace(/\s*```$/i, "")
+          .trim();
+    }
+
+
+    // -------------------------------------------------
+    // PARSEAR JSON
+    // -------------------------------------------------
+
+    let resultadoIA;
 
     try {
 
-      comprobante =
-        JSON.parse(textoJSON);
+      resultadoIA =
+        JSON.parse(texto);
 
-    } catch (error) {
+    } catch {
 
       console.error(
-        "RESPUESTA IA NO JSON:",
-        contenido
+        "JSON IA INVÁLIDO:",
+        texto
       );
 
-      throw new Error(
-        "La IA no devolvió un formato válido."
-      );
+      return {
+        statusCode: 502,
+        headers,
+        body: JSON.stringify({
+          error:
+            "La IA respondió en un formato inválido.",
+          respuestaIA:
+            texto,
+        }),
+      };
     }
 
 
     // =================================================
-    // VALIDACIÓN DEL COMPROBANTE
+    // VALIDACIÓN
     // =================================================
 
     const montoDetectado =
       Number(
-        comprobante.monto
+        resultadoIA.monto
       );
 
 
@@ -411,10 +428,9 @@ Reglas:
 
     const cbuDetectado =
       String(
-        comprobante.cbu_destino || ""
+        resultadoIA.cbu_destino || ""
       )
-        .replace(/\s/g, "")
-        .trim();
+        .replace(/\s/g, "");
 
 
     const cbuCorrecto =
@@ -424,7 +440,7 @@ Reglas:
 
     const titularDetectado =
       String(
-        comprobante.titular_destino || ""
+        resultadoIA.titular_destino || ""
       )
         .trim()
         .toLowerCase();
@@ -432,49 +448,34 @@ Reglas:
 
     const titularCorrecto =
       titularDetectado ===
-      TITULAR_ESPERADO.toLowerCase();
+      TITULAR_ESPERADO
+        .toLowerCase();
 
 
     const esComprobante =
-      comprobante.es_comprobante === true;
+      resultadoIA.es_comprobante === true;
 
 
-    const estadoTransferencia =
+    const estado =
       String(
-        comprobante.estado || ""
+        resultadoIA.estado || ""
       )
         .toLowerCase();
 
 
     const transferenciaExitosa =
-      [
-        "completada",
-        "completado",
-        "exitosa",
-        "exitoso",
-        "realizada",
-        "realizado",
-        "aprobada",
-        "aprobado",
-        "confirmada",
-        "confirmado",
-      ].some(
-        (estado) =>
-          estadoTransferencia.includes(
-            estado
-          )
-      );
+      estado.includes("complet") ||
+      estado.includes("exit") ||
+      estado.includes("realiz") ||
+      estado.includes("aprob") ||
+      estado.includes("confirm");
 
 
     const confianza =
       Number(
-        comprobante.confianza || 0
+        resultadoIA.confianza || 0
       );
 
-
-    // -------------------------------------------------
-    // DECISIÓN FINAL
-    // -------------------------------------------------
 
     const aprobado =
       esComprobante &&
@@ -486,7 +487,7 @@ Reglas:
 
 
     // =================================================
-    // APROBAR PEDIDO
+    // APROBADO
     // =================================================
 
     if (aprobado) {
@@ -503,23 +504,24 @@ Reglas:
           true,
 
         comprobanteResultado: {
+
           monto:
             montoDetectado,
 
           titular:
-            comprobante.titular_destino,
+            resultadoIA.titular_destino,
 
           cbu:
             cbuDetectado,
 
           fecha:
-            comprobante.fecha || "",
+            resultadoIA.fecha || "",
 
           hora:
-            comprobante.hora || "",
+            resultadoIA.hora || "",
 
           estado:
-            comprobante.estado || "",
+            resultadoIA.estado || "",
 
           confianza,
         },
@@ -546,14 +548,15 @@ Reglas:
               montoDetectado,
 
             titular:
-              comprobante.titular_destino,
+              resultadoIA.titular_destino,
 
             fecha:
-              comprobante.fecha,
+              resultadoIA.fecha || "",
 
             hora:
-              comprobante.hora,
+              resultadoIA.hora || "",
           },
+
         }),
       };
     }
@@ -575,7 +578,30 @@ Reglas:
         mensaje:
           "No pudimos validar el comprobante.",
 
-        motivos: {
+        comprobante: {
+
+          monto:
+            montoDetectado,
+
+          titular:
+            resultadoIA.titular_destino || "",
+
+          cbu:
+            cbuDetectado,
+
+          fecha:
+            resultadoIA.fecha || "",
+
+          hora:
+            resultadoIA.hora || "",
+
+          estado:
+            resultadoIA.estado || "",
+
+          confianza,
+        },
+
+        validacion: {
 
           esComprobante,
 
@@ -590,28 +616,6 @@ Reglas:
           confianza,
         },
 
-        comprobante: {
-
-          monto:
-            montoDetectado,
-
-          titular:
-            comprobante.titular_destino || "",
-
-          cbu:
-            cbuDetectado,
-
-          fecha:
-            comprobante.fecha || "",
-
-          hora:
-            comprobante.hora || "",
-
-          estado:
-            comprobante.estado || "",
-
-          confianza,
-        },
       }),
     };
 
@@ -630,9 +634,9 @@ Reglas:
       body: JSON.stringify({
         error:
           error.message ||
-          "No se pudo analizar el comprobante.",
+          "Error interno analizando el comprobante.",
       }),
     };
   }
 };
-````
+
