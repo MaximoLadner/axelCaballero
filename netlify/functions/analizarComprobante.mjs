@@ -20,9 +20,9 @@ const MODELO = "google/gemini-2.5-flash";
 // Si vas a usar Mercado Pago, reemplazá estos datos
 // por el CVU y titular reales de tu cuenta.
 
-const CUENTA_ESPERADA = "0000129400000007350191";
+const CUENTA_ESPERADA = "0000003100058277014581";
 
-const TITULAR_ESPERADO = "Servygest Provincia";
+const TITULAR_ESPERADO = "Máximo Ladner";
 
 // Confianza mínima para aprobar
 const CONFIANZA_MINIMA = 80;
