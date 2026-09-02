@@ -37,9 +37,9 @@ function Sorteo() {
   // ==========================================
 
   const DATOS_TRANSFERENCIA = {
-    banco: "YOPIT PAGOS",
-    cbu: "0000129400000007350191",
-    titular: "Servygest Provincia",
+    banco: "Mercado Pago",
+    cbu: "0000003100058277014581",
+    titular: "Griselda Fabiana Pelc",
   };
 
   // ==========================================
