@@ -5,11 +5,23 @@ import {
 } from "../services/participanteService";
 
 import logo from "../../public/logo.jpeg";
+import foto1 from "../../public/foto1.jpeg";
+import foto2 from "../../public/foto2.jpeg";
+import foto3 from "../../public/foto3.jpeg";
+import foto4 from "../../public/foto4.jpeg";
+import foto5 from "../../public/foto5.jpeg";
 import {
   FaFacebookF,
   FaInstagram,
   FaGoogle,
 } from "react-icons/fa";
+
+// ==========================================
+// CARRUSEL DEL HERO
+// ==========================================
+// Definido fuera del componente para no recrear
+// el array en cada render.
+const IMAGENES_CARRUSEL = [foto1, foto2, foto3, foto4, foto5];
 
 function Sorteo() {
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
@@ -37,6 +49,39 @@ function Sorteo() {
   const [analizandoComprobante, setAnalizandoComprobante] = useState(false);
   const [resultadoPago, setResultadoPago] = useState(null);
   const inputComprobanteRef = useRef(null);
+
+  // ==========================================
+  // CARRUSEL DEL HERO
+  // ==========================================
+
+  const [indiceCarrusel, setIndiceCarrusel] = useState(0);
+
+  const irSiguiente = () => {
+    setIndiceCarrusel(
+      (prev) => (prev + 1) % IMAGENES_CARRUSEL.length
+    );
+  };
+
+  const irAnterior = () => {
+    setIndiceCarrusel(
+      (prev) =>
+        (prev - 1 + IMAGENES_CARRUSEL.length) %
+        IMAGENES_CARRUSEL.length
+    );
+  };
+
+  // Autoplay: cambia de foto sola cada 4 segundos
+  useEffect(() => {
+
+    const intervalo = setInterval(() => {
+      setIndiceCarrusel(
+        (prev) => (prev + 1) % IMAGENES_CARRUSEL.length
+      );
+    }, 4000);
+
+    return () => clearInterval(intervalo);
+
+  }, []);
 
   // ==========================================
   // DATOS DE TRANSFERENCIA
@@ -909,6 +954,37 @@ const handleSeleccionarComprobante = (
 
             )}
 
+            {/* FIX: antes el backend no mandaba los números, así que
+                nunca se mostraban acá. Ahora analizarComprobante.mjs
+                los incluye en comprobante.numeros. */}
+
+            {resultadoPago.comprobante?.numeros?.length > 0 && (
+
+              <div className="mt-3 bg-[#0a0a0a] border border-green-500/20 rounded-lg p-3">
+
+                <p className="text-[#8a8a8a] text-xs mb-2">
+                  Tus números
+                </p>
+
+                <div className="flex flex-wrap gap-2">
+
+                  {resultadoPago.comprobante.numeros.map((numero) => (
+
+                    <span
+                      key={numero}
+                      className="px-2 py-1 rounded bg-green-500/10 border border-green-500/30 text-green-300 font-mono text-sm"
+                    >
+                      {numero}
+                    </span>
+
+                  ))}
+
+                </div>
+
+              </div>
+
+            )}
+
           </div>
 
         </div>
@@ -1159,7 +1235,7 @@ const handleSeleccionarComprobante = (
 
             <p className="text-lg md:text-xl leading-7 text-[#c9c9c9] max-w-xl">
 
-              Participá ahora y llevate una  Honda Wave 0Km.<br />
+              Participá ahora y llevate una  Honda Wave.<br />
               Comprá tus chances y asegurá tu lugar en el sorteo más
               esperado del año.
 
@@ -1234,20 +1310,76 @@ const handleSeleccionarComprobante = (
           </div>
 
 
-          {/* IMAGEN */}
+          {/* IMAGEN - CARRUSEL */}
 
           <div className="flex-1 w-full max-w-2xl relative rounded-2xl overflow-hidden border border-[#2a2a2a] shadow-2xl">
 
             <div className="relative w-full aspect-[1.79]">
 
-              <img
-                className="w-full h-full object-cover"
-                alt="Honda Wave"
-                src="https://lh3.googleusercontent.com/aida-public/AB6AXuCHy_0tAXaAUafREZ02gPa0Ct2VouIRTLk9u0MpwZiszUuVZ5xK1khlFD2sLRImp_9BY7uJfGenMZC8YeZMkR3YsQo26_W0JDRvg9E4tzjOjhdCrMpb9DDUSLnzsyhXdMVzdDNI-A3HItiHiyvKe9WQnU2g-lXBh0v3GEa4N1ghgBd7bovywntI6PItL_4Z_oT544QncJsuCVw2IKACHfReGZjLwq1mxdW4Nsep54QABnjv-jG_wprk"
-              />
+              {/* FOTOS (se van mostrando/ocultando con opacidad) */}
 
-              <div className="absolute top-4 right-4 bg-[#e21f26] text-white font-semibold px-4 py-1.5 rounded-full flex items-center gap-2 shadow-lg">
+              {IMAGENES_CARRUSEL.map((imagen, index) => (
+
+                <img
+                  key={index}
+                  className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ${
+                    index === indiceCarrusel
+                      ? "opacity-100"
+                      : "opacity-0"
+                  }`}
+                  alt={`Honda Wave ${index + 1}`}
+                  src={imagen}
+                />
+
+              ))}
+
+
+              <div className="absolute top-4 right-4 bg-[#e21f26] text-white font-semibold px-4 py-1.5 rounded-full flex items-center gap-2 shadow-lg z-10">
                 🎟️ Sorteo
+              </div>
+
+
+              {/* FLECHA ANTERIOR */}
+
+              <button
+                onClick={irAnterior}
+                aria-label="Foto anterior"
+                className="absolute left-3 top-1/2 -translate-y-1/2 z-10 w-9 h-9 rounded-full bg-black/50 text-white text-xl flex items-center justify-center opacity-80 hover:opacity-100 hover:bg-black/70 transition"
+              >
+                ‹
+              </button>
+
+
+              {/* FLECHA SIGUIENTE */}
+
+              <button
+                onClick={irSiguiente}
+                aria-label="Foto siguiente"
+                className="absolute right-3 top-1/2 -translate-y-1/2 z-10 w-9 h-9 rounded-full bg-black/50 text-white text-xl flex items-center justify-center opacity-80 hover:opacity-100 hover:bg-black/70 transition"
+              >
+                ›
+              </button>
+
+
+              {/* PUNTOS INDICADORES */}
+
+              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 flex gap-2">
+
+                {IMAGENES_CARRUSEL.map((_, index) => (
+
+                  <button
+                    key={index}
+                    onClick={() => setIndiceCarrusel(index)}
+                    aria-label={`Ir a la foto ${index + 1}`}
+                    className={`h-2 rounded-full transition-all ${
+                      index === indiceCarrusel
+                        ? "w-6 bg-[#e21f26]"
+                        : "w-2 bg-white/50 hover:bg-white/80"
+                    }`}
+                  />
+
+                ))}
+
               </div>
 
             </div>
@@ -1808,7 +1940,6 @@ const handleSeleccionarComprobante = (
 
                 <a
                   href="https://www.facebook.com/iara.salvatierra.12"
-                  target="_blank"
                   aria-label="Facebook"
                   className="w-11 h-11 flex items-center justify-center rounded-full bg-white/5 border border-white/10 text-gray-400 hover:bg-[#e21f26] hover:text-white hover:border-[#e21f26] transition-all duration-300 hover:-translate-y-1"
                 >
