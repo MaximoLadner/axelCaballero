@@ -1159,7 +1159,7 @@ const handleSeleccionarComprobante = (
 
             <p className="text-lg md:text-xl leading-7 text-[#c9c9c9] max-w-xl">
 
-              Participá ahora y llevate una  Honda Wave.<br />
+              Participá ahora y llevate una  Honda Wave 0Km.<br />
               Comprá tus chances y asegurá tu lugar en el sorteo más
               esperado del año.
 
@@ -1808,6 +1808,7 @@ const handleSeleccionarComprobante = (
 
                 <a
                   href="https://www.facebook.com/iara.salvatierra.12"
+                  target="_blank"
                   aria-label="Facebook"
                   className="w-11 h-11 flex items-center justify-center rounded-full bg-white/5 border border-white/10 text-gray-400 hover:bg-[#e21f26] hover:text-white hover:border-[#e21f26] transition-all duration-300 hover:-translate-y-1"
                 >
