@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   obtenerPromociones,
@@ -14,7 +14,7 @@ import {
 
 function Sorteo() {
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
-  const [mostrarChat, setMostrarChat] = useState(false);
+  const [mostrarChat, setMostrarChat] = useState(true);
   const [pedidoRealizado, setPedidoRealizado] = useState(false);
   const [procesando, setProcesando] = useState(false);
 
@@ -28,6 +28,11 @@ function Sorteo() {
   const [promocionId, setPromocionId] = useState("");
 
   const promociones = obtenerPromociones();
+
+  const [comprobante, setComprobante] = useState(null); 
+  const [analizandoComprobante, setAnalizandoComprobante] = useState(false);
+  const [resultadoPago, setResultadoPago] = useState(null);
+  const inputComprobanteRef = useRef(null);
 
   // ==========================================
   // DATOS DE TRANSFERENCIA
@@ -136,6 +141,161 @@ function Sorteo() {
       setProcesando(false);
     }
   };
+
+  
+// ==========================================
+// ANALIZAR COMPROBANTE
+// ==========================================
+
+const analizarComprobante = async (archivo) => {
+
+  if (!archivo) {
+    return;
+  }
+
+  if (!archivo.type.startsWith("image/")) {
+    alert("El comprobante debe ser una imagen.");
+    return;
+  }
+
+  // Límite razonable para no mandar archivos gigantes
+  if (archivo.size > 8 * 1024 * 1024) {
+    alert("La imagen es demasiado grande. Máximo 8 MB.");
+    return;
+  }
+
+  try {
+
+    setAnalizandoComprobante(true);
+    setResultadoPago(null);
+
+    // ------------------------------------------
+    // CONVERTIR IMAGEN A BASE64
+    // ------------------------------------------
+
+    const base64 =
+      await new Promise((resolve, reject) => {
+
+        const reader =
+          new FileReader();
+
+        reader.onload = () =>
+          resolve(reader.result);
+
+        reader.onerror = () =>
+          reject(
+            new Error(
+              "No se pudo leer la imagen."
+            )
+          );
+
+        reader.readAsDataURL(archivo);
+      });
+
+
+    // ------------------------------------------
+    // ENVIAR A NETLIFY FUNCTION
+    // ------------------------------------------
+
+    const respuesta =
+      await fetch(
+        "/.netlify/functions/analizarComprobante",
+        {
+          method: "POST",
+
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+
+          body: JSON.stringify({
+            pedidoId,
+            imagen: base64,
+          }),
+        }
+      );
+
+
+    const datos =
+      await respuesta.json();
+
+
+    if (!respuesta.ok) {
+      throw new Error(
+        datos.error ||
+        "No se pudo analizar el comprobante."
+      );
+    }
+
+
+    // ------------------------------------------
+    // GUARDAR RESULTADO
+    // ------------------------------------------
+
+    setResultadoPago(datos);
+
+
+    if (datos.aprobado) {
+
+      alert(
+        "¡Pago aprobado! Tu participación quedó confirmada."
+      );
+
+    } else {
+
+      alert(
+        datos.mensaje ||
+        "No pudimos validar el comprobante."
+      );
+    }
+
+
+  } catch (error) {
+
+    console.error(
+      "Error analizando comprobante:",
+      error
+    );
+
+    alert(
+      error.message ||
+      "No se pudo analizar el comprobante."
+    );
+
+  } finally {
+
+    setAnalizandoComprobante(false);
+
+    if (
+      inputComprobanteRef.current
+    ) {
+      inputComprobanteRef.current.value = "";
+    }
+  }
+};
+
+
+// ==========================================
+// SELECCIONAR COMPROBANTE
+// ==========================================
+
+const handleSeleccionarComprobante = (
+  e
+) => {
+
+  const archivo =
+    e.target.files?.[0];
+
+  if (!archivo) {
+    return;
+  }
+
+  setComprobante(archivo);
+
+  analizarComprobante(archivo);
+};
+
+
 
   // ==========================================
   // COPIAR CBU
@@ -470,14 +630,7 @@ function Sorteo() {
                 </div>
 
 
-                <button
-                  onClick={() =>
-                    setMostrarChat(true)
-                  }
-                  className="shrink-0 px-5 py-3 rounded-lg bg-[#e21f26] text-white font-bold hover:bg-[#b3161c] transition"
-                >
-                  💬 Abrir chat
-                </button>
+                
 
               </div>
 
@@ -552,111 +705,291 @@ function Sorteo() {
 
         {/* CHAT */}
 
-        {mostrarChat && (
+        ```jsx
+{/* CHAT */}
 
-          <>
+{mostrarChat && (
 
-            {/* FONDO */}
+  <div className="fixed bottom-5 right-5 z-[100] w-[calc(100vw-40px)] sm:w-[390px] max-h-[75vh] bg-[#141414] border border-[#2a2a2a] rounded-2xl shadow-2xl overflow-hidden flex flex-col">
 
-            <div
-              onClick={() =>
-                setMostrarChat(false)
-              }
-              className="fixed inset-0 z-[90] bg-black/50"
-            />
+    {/* HEADER */}
 
+    <div className="bg-[#0a0a0a] border-b border-[#2a2a2a] px-5 py-4 flex items-center justify-between">
 
-            {/* VENTANA */}
+      <div className="flex items-center gap-3">
 
-            <div className="fixed bottom-5 right-5 z-[100] w-[calc(100vw-40px)] sm:w-[390px] max-h-[75vh] bg-[#141414] border border-[#2a2a2a] rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+        <div className="w-10 h-10 rounded-full bg-[#e21f26] flex items-center justify-center">
+          🤖
+        </div>
 
-              {/* HEADER */}
+        <div>
 
-              <div className="bg-[#0a0a0a] border-b border-[#2a2a2a] px-5 py-4 flex items-center justify-between">
+          <p className="text-white font-bold">
+            Motor Win
+          </p>
 
-                <div className="flex items-center gap-3">
+          <p className="text-xs text-[#8a8a8a]">
+            Asistencia para tu pedido
+          </p>
 
-                  <div className="w-10 h-10 rounded-full bg-[#e21f26] flex items-center justify-center">
-                    💬
-                  </div>
+        </div>
 
-                  <div>
-
-                    <p className="text-white font-bold">
-                      Motor Win
-                    </p>
-
-                    <p className="text-xs text-[#8a8a8a]">
-                      Asistencia para tu pedido
-                    </p>
-
-                  </div>
-
-                </div>
+      </div>
 
 
-                <button
-                  onClick={() =>
-                    setMostrarChat(false)
-                  }
-                  className="text-[#8a8a8a] hover:text-white text-xl"
-                >
-                  ✕
-                </button>
+      {/* CERRAR */}
 
-              </div>
+      <button
+        onClick={() =>
+          setMostrarChat(false)
+        }
+        className="text-[#8a8a8a] hover:text-white text-xl transition"
+      >
+        ✕
+      </button>
 
-
-              {/* MENSAJE */}
-
-              <div className="flex-1 overflow-y-auto p-5">
-
-                <div className="bg-[#1c1c1c] border border-[#2a2a2a] rounded-2xl rounded-tl-sm p-4">
-
-                  <p className="text-white font-semibold mb-2">
-                    👋 ¡Hola!
-                  </p>
-
-                  <p className="text-[#c9c9c9] text-sm leading-relaxed">
-
-                    Este chat va a permitirte enviar el comprobante
-                    de transferencia y consultar sobre tu pedido.
-
-                  </p>
+    </div>
 
 
-                  <div className="mt-4 bg-[#0a0a0a] rounded-lg p-3 border border-[#2a2a2a]">
+    {/* MENSAJES */}
 
-                    <p className="text-[#8a8a8a] text-xs">
-                      Pedido
-                    </p>
+    <div className="flex-1 overflow-y-auto p-5">
 
-                    <p className="text-white font-bold">
-                      #{pedidoId}
-                    </p>
+      {/* MENSAJE INICIAL */}
 
-                  </div>
+      <div className="bg-[#1c1c1c] border border-[#2a2a2a] rounded-2xl rounded-tl-sm p-4">
 
-                </div>
+        <p className="text-white font-semibold mb-2">
+          👋 ¡Hola!
+        </p>
 
-              </div>
+        <p className="text-[#c9c9c9] text-sm leading-relaxed">
+
+          Tu pedido fue creado correctamente.
+
+          <br />
+
+          Ahora realizá la transferencia por el monto
+          indicado y enviá el comprobante por acá.
+
+        </p>
 
 
-              {/* FOOTER */}
+        {/* PEDIDO */}
 
-              <div className="border-t border-[#2a2a2a] p-4 bg-[#0f0f0f]">
+        <div className="mt-4 bg-[#0a0a0a] rounded-lg p-3 border border-[#2a2a2a]">
 
-                <p className="text-[#8a8a8a] text-xs text-center">
-                  📎 Próximamente vas a poder subir tu comprobante directamente desde acá.
+          <p className="text-[#8a8a8a] text-xs">
+            Pedido
+          </p>
+
+          <p className="text-white font-bold">
+            #{pedidoId}
+          </p>
+
+        </div>
+
+      </div>
+
+
+      {/* ESTADO: ANALIZANDO */}
+
+      {analizandoComprobante && (
+
+        <div className="mt-4 flex justify-start">
+
+          <div className="bg-[#1c1c1c] border border-[#2a2a2a] rounded-2xl rounded-tl-sm p-4 max-w-[90%]">
+
+            <div className="flex items-center gap-3">
+
+              <div className="w-7 h-7 border-4 border-[#2a2a2a] border-t-[#e21f26] rounded-full animate-spin" />
+
+              <div>
+
+                <p className="text-white font-semibold text-sm">
+                  Analizando comprobante...
+                </p>
+
+                <p className="text-[#8a8a8a] text-xs mt-1">
+                  Verificando los datos de la transferencia.
                 </p>
 
               </div>
 
             </div>
 
-          </>
+          </div>
 
-        )}
+        </div>
+
+      )}
+
+
+      {/* RESULTADO APROBADO */}
+
+      {resultadoPago?.aprobado && (
+
+        <div className="mt-4 flex justify-start">
+
+          <div className="bg-green-500/10 border border-green-500/30 rounded-2xl rounded-tl-sm p-4 max-w-[90%]">
+
+            <p className="text-green-400 font-bold mb-2">
+              ✅ ¡Pago aprobado!
+            </p>
+
+            <p className="text-[#c9c9c9] text-sm leading-relaxed">
+
+              Tu transferencia fue validada correctamente.
+
+              <br />
+
+              Tu participación quedó confirmada.
+
+            </p>
+
+
+            {resultadoPago.comprobante && (
+
+              <div className="mt-3 bg-[#0a0a0a] border border-green-500/20 rounded-lg p-3">
+
+                <p className="text-[#8a8a8a] text-xs">
+                  Monto detectado
+                </p>
+
+                <p className="text-white font-bold">
+                  $
+                  {Number(
+                    resultadoPago.comprobante.monto
+                  ).toLocaleString("es-AR")}
+                </p>
+
+              </div>
+
+            )}
+
+          </div>
+
+        </div>
+
+      )}
+
+
+      {/* RESULTADO RECHAZADO */}
+
+      {resultadoPago &&
+        !resultadoPago.aprobado &&
+        !analizandoComprobante && (
+
+        <div className="mt-4 flex justify-start">
+
+          <div className="bg-red-500/10 border border-red-500/30 rounded-2xl rounded-tl-sm p-4 max-w-[90%]">
+
+            <p className="text-red-400 font-bold mb-2">
+              ❌ Comprobante no validado
+            </p>
+
+            <p className="text-[#c9c9c9] text-sm leading-relaxed">
+
+              {resultadoPago.mensaje ||
+                "No pudimos confirmar la transferencia con este comprobante."}
+
+            </p>
+
+            <p className="text-[#8a8a8a] text-xs mt-3">
+              Podés enviar otro comprobante para volver a intentarlo.
+            </p>
+
+          </div>
+
+        </div>
+
+      )}
+
+    </div>
+
+
+    {/* FOOTER */}
+
+    <div className="border-t border-[#2a2a2a] p-4 bg-[#0f0f0f]">
+
+      {/* INPUT OCULTO */}
+
+      <input
+        ref={inputComprobanteRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        onChange={handleSeleccionarComprobante}
+        className="hidden"
+      />
+
+
+      {/* BOTÓN ENVIAR */}
+
+      {!analizandoComprobante &&
+        !resultadoPago?.aprobado && (
+
+        <button
+          onClick={() =>
+            inputComprobanteRef.current?.click()
+          }
+          className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-[#e21f26] text-white font-bold hover:bg-[#b3161c] transition"
+        >
+
+          📎
+
+          {resultadoPago
+            ? "Enviar otro comprobante"
+            : "Enviar comprobante"}
+
+        </button>
+
+      )}
+
+
+      {/* ANALIZANDO */}
+
+      {analizandoComprobante && (
+
+        <div className="text-center">
+
+          <p className="text-[#c9c9c9] text-sm">
+            🤖 La IA está analizando tu comprobante...
+          </p>
+
+          <p className="text-[#666] text-xs mt-1">
+            Esto puede tardar unos segundos.
+          </p>
+
+        </div>
+
+      )}
+
+
+      {/* APROBADO */}
+
+      {resultadoPago?.aprobado && (
+
+        <div className="text-center">
+
+          <p className="text-green-400 text-sm font-semibold">
+            ✓ Transferencia confirmada
+          </p>
+
+          <p className="text-[#666] text-xs mt-1">
+            Ya no necesitás enviar otro comprobante.
+          </p>
+
+        </div>
+
+      )}
+
+    </div>
+
+  </div>
+
+)}
+```
+
 
       </div>
     );
