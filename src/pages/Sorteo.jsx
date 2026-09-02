@@ -1278,16 +1278,12 @@ const handleSeleccionarComprobante = (
               </div>
 
 
-              <button
-                onClick={() =>
-                  alert(
-                    "Próximamente: enlace al sorteo en vivo por YouTube."
-                  )
-                }
+              <a href="https://www.instagram.com/axelcaballeroo/" target="_blank"
+                
                 className="w-full sm:w-fit flex items-center justify-center gap-2 px-5 py-3 rounded-lg border border-[#e21f26] text-[#e21f26] font-semibold hover:bg-[#e21f26]/10 transition relative z-10"
               >
                 ▶️ Ver sorteo en vivo por Instagram
-              </button>
+              </a>
 
             </div>
 
