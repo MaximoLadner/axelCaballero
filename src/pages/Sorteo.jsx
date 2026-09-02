@@ -433,7 +433,7 @@ const handleSeleccionarComprobante = (
                   </div>
 
                   <h2 className="text-2xl font-bold text-white">
-                    1. Transferí a esta cuenta
+                    1. Transferí a esta cuenta (tienes 3 minutos para hacerlo o el comprobante no sera valido)
                   </h2>
 
                 </div>

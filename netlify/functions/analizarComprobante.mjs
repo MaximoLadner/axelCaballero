@@ -288,6 +288,10 @@ Reglas:
 
 12. Prestá especial atención al monto y a la cuenta
     destinataria.
+
+13.Prestá ESPECIAL ATENCIÓN al horario, si pasaron mas de 3 min desde que se realizó la transferencia, el comprobante no es válido.
+
+14.Prestá ESPECIAL ATENCION de que el comprobante no este modificado por algun editos de imagenes, revisa bien los numeros que no esten borrado o adulterados, si el comprobante esta adulterado no es válido.
 `;
 
 
