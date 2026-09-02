@@ -1,6 +1,10 @@
 import { cert, getApps, initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 
+console.log("VARIABLES DISPONIBLES:", Object.keys(process.env).filter(key =>
+  key.startsWith("FIREBASE_")
+));
+
 const projectId = process.env.FIREBASE_PROJECT_ID;
 const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
 const privateKey = process.env.FIREBASE_PRIVATE_KEY;
