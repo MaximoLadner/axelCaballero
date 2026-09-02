@@ -1157,12 +1157,7 @@ const handleSeleccionarComprobante = (
 
           <div className="flex items-center gap-3">
 
-            <a
-              href="#premios"
-              className="hidden md:flex items-center gap-2 px-6 py-2 rounded-full bg-[#e21f26] text-white font-semibold hover:bg-[#b3161c] transition"
-            >
-              🏆 Ganadores
-            </a>
+            
 
 
             <button
@@ -1193,9 +1188,7 @@ const handleSeleccionarComprobante = (
 
               🎟️
 
-              <span className="hidden sm:inline">
-                Mis Números
-              </span>
+              
 
             </button>
 
