@@ -39,7 +39,7 @@ function Sorteo() {
   const DATOS_TRANSFERENCIA = {
     banco: "Mercado Pago",
     cbu: "0000003100058277014581",
-    titular: "Griselda Fabiana Pelc",
+    titular: "Maximo Ladner",
   };
 
   // ==========================================
