@@ -5,7 +5,7 @@ import {
 } from "../services/participanteService";
 
 import logo from "../../public/logo.jpeg";
-import foto1 from "../../public/foto1.jpeg";
+
 import foto2 from "../../public/foto2.jpeg";
 import foto3 from "../../public/foto3.jpeg";
 import foto4 from "../../public/foto4.jpeg";
@@ -21,7 +21,7 @@ import {
 // ==========================================
 // Definido fuera del componente para no recrear
 // el array en cada render.
-const IMAGENES_CARRUSEL = [foto1, foto2, foto3, foto4, foto5];
+const IMAGENES_CARRUSEL = [ foto2, foto3, foto4, foto5];
 
 function Sorteo() {
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
