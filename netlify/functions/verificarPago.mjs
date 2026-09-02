@@ -3,46 +3,50 @@ import { FieldValue } from "firebase-admin/firestore";
 import nodemailer from "nodemailer";
 
 export default async (req) => {
-  try {
-    if (req.method !== "POST") {
-      return new Response(
-        JSON.stringify({
-          error: "Método no permitido",
-        }),
-        {
-          status: 405,
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
-      );
-    }
+  console.log("=== VERIFICAR PAGO INICIADO ===");
 
-    const { participanteId } = await req.json();
+  if (req.method !== "POST") {
+    console.log("Método recibido:", req.method);
+
+    return new Response(
+      JSON.stringify({ error: "Método no permitido" }),
+      {
+        status: 405,
+        headers: { "Content-Type": "application/json" },
+      }
+    );
+  }
+
+  try {
+    const body = await req.json();
+
+    console.log("Body recibido:", {
+      participanteId: body?.participanteId,
+    });
+
+    const { participanteId } = body;
 
     if (!participanteId) {
+      console.log("Falta participanteId");
+
       return new Response(
         JSON.stringify({
           error: "Falta participanteId",
         }),
         {
           status: 400,
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
         }
       );
     }
-
-    // =====================================================
-    // BUSCAR PARTICIPANTE
-    // =====================================================
 
     const participanteRef = db
       .collection("participantes")
       .doc(participanteId);
 
     const participanteSnap = await participanteRef.get();
+
+    console.log("Participante existe:", participanteSnap.exists);
 
     if (!participanteSnap.exists) {
       return new Response(
@@ -51,375 +55,274 @@ export default async (req) => {
         }),
         {
           status: 404,
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
         }
       );
     }
 
     const participante = participanteSnap.data();
 
-    // =====================================================
-    // SI YA ESTÁ APROBADO
-    // =====================================================
+    console.log("Participante encontrado:", {
+      email: participante.email,
+      montoEsperado: participante.montoEsperado,
+      estadoPago: participante.estadoPago,
+      fechaInicioPago: participante.fechaInicioPago?.toDate?.(),
+    });
 
     if (participante.estadoPago === "aprobado") {
-      if (!participante.emailEnviado) {
-        try {
-          await enviarEmailNumeros(participante);
-
-          await participanteRef.update({
-            emailEnviado: true,
-          });
-        } catch (emailError) {
-          console.error(
-            "Error reintentando envío de email:",
-            emailError
-          );
-        }
-      }
+      console.log("El participante ya estaba aprobado");
 
       return new Response(
         JSON.stringify({
           aprobado: true,
           numeros: participante.numeros || [],
-          montoPagado:
-            participante.montoPagado ||
-            participante.montoEsperado,
+          montoPagado: participante.montoPagado || 0,
         }),
         {
           status: 200,
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
         }
       );
     }
 
-    // =====================================================
-    // MERCADO PAGO
-    // =====================================================
+    const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
 
-    const accessToken =
-      process.env.MERCADOPAGO_ACCESS_TOKEN;
+    console.log(
+      "Mercado Pago token configurado:",
+      !!accessToken
+    );
 
     if (!accessToken) {
-      console.error(
-        "MERCADOPAGO_ACCESS_TOKEN no configurado"
-      );
-
-      return new Response(
-        JSON.stringify({
-          error: "Mercado Pago no está configurado",
-        }),
-        {
-          status: 500,
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
+      throw new Error(
+        "Falta MERCADOPAGO_ACCESS_TOKEN en Netlify"
       );
     }
 
-    // =====================================================
-    // BUSCAR PAGOS APROBADOS
-    // =====================================================
+    console.log("Consultando Mercado Pago...");
 
-    const respuesta = await fetch(
-      "https://api.mercadopago.com/v1/payments/search" +
-        "?status=approved" +
-        "&sort=date_created" +
-        "&criteria=desc" +
-        "&limit=50",
+    const respuestaMP = await fetch(
+      "https://api.mercadopago.com/v1/payments/search?status=approved&sort=date_created&criteria=desc&limit=50",
       {
-        method: "GET",
         headers: {
           Authorization: `Bearer ${accessToken}`,
         },
       }
     );
 
-    if (!respuesta.ok) {
-      const texto = await respuesta.text();
+    console.log(
+      "Respuesta Mercado Pago:",
+      respuestaMP.status,
+      respuestaMP.statusText
+    );
 
-      console.error(
-        "Mercado Pago respondió:",
-        texto
-      );
+    const datosMP = await respuestaMP.json();
 
-      return new Response(
-        JSON.stringify({
-          error: "Error consultando Mercado Pago",
-        }),
-        {
-          status: 500,
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
+    console.log(
+      "Cantidad de pagos encontrados:",
+      datosMP.results?.length || 0
+    );
+
+    if (!respuestaMP.ok) {
+      console.log("Error Mercado Pago:", datosMP);
+
+      throw new Error(
+        `Mercado Pago respondió ${respuestaMP.status}`
       );
     }
 
-    const datos = await respuesta.json();
-
-    const pagos = datos.results || [];
-
-    // =====================================================
-    // DATOS DEL PARTICIPANTE
-    // =====================================================
+    const fechaInicio =
+      participante.fechaInicioPago?.toDate?.() || new Date(0);
 
     const emailParticipante =
-      participante.email
-        ?.trim()
-        .toLowerCase();
+      participante.email?.trim().toLowerCase();
 
     const montoEsperado =
       Number(participante.montoEsperado);
 
-    let fechaInicio =
-      new Date(Date.now() - 30 * 60 * 1000);
+    console.log("Buscando coincidencia:", {
+      email: emailParticipante,
+      monto: montoEsperado,
+      desde: fechaInicio,
+    });
 
-    if (
-      participante.fechaInicioPago &&
-      participante.fechaInicioPago.toDate
-    ) {
-      fechaInicio =
-        participante.fechaInicioPago.toDate();
-    }
-
-    // =====================================================
-    // BUSCAR PAGO
-    // =====================================================
-
-    const pagoEncontrado = pagos.find((pago) => {
-      const monto =
-        Number(pago.transaction_amount);
+    const pagoEncontrado = datosMP.results?.find((pago) => {
+      const montoCoincide =
+        Number(pago.transaction_amount) === montoEsperado;
 
       const emailPago =
-        pago.payer?.email
-          ?.trim()
-          .toLowerCase();
+        pago.payer?.email?.trim().toLowerCase();
+
+      const emailCoincide =
+        emailPago === emailParticipante;
 
       const fechaPago =
         new Date(pago.date_created);
 
-      const mismoMonto =
-        monto === montoEsperado;
-
-      const mismoEmail =
-        emailPago === emailParticipante;
-
-      const posterior =
+      const fechaCoincide =
         fechaPago >= fechaInicio;
 
+      console.log("Pago revisado:", {
+        id: pago.id,
+        monto: pago.transaction_amount,
+        email: emailPago,
+        fecha: pago.date_created,
+        montoCoincide,
+        emailCoincide,
+        fechaCoincide,
+      });
+
       return (
-        mismoMonto &&
-        mismoEmail &&
-        posterior
+        montoCoincide &&
+        emailCoincide &&
+        fechaCoincide
       );
     });
 
-    // =====================================================
-    // TODAVÍA NO PAGÓ
-    // =====================================================
-
     if (!pagoEncontrado) {
+      console.log("❌ NO SE ENCONTRÓ EL PAGO");
+
       return new Response(
         JSON.stringify({
           aprobado: false,
         }),
         {
           status: 200,
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
         }
       );
     }
 
-    // =====================================================
-    // CONFIGURACIÓN DEL SORTEO
-    // =====================================================
+    console.log("✅ PAGO ENCONTRADO:", pagoEncontrado.id);
 
-    const configuracionRef =
-      db.collection("configuracion")
-        .doc("sorteo");
+    const resultado = await db.runTransaction(
+      async (transaction) => {
+        const participanteActual =
+          await transaction.get(participanteRef);
 
-    // =====================================================
-    // TRANSACCIÓN
-    // =====================================================
+        const datosActuales =
+          participanteActual.data();
 
-    const resultado =
-      await db.runTransaction(
-        async (transaction) => {
-          const participanteActual =
-            await transaction.get(
-              participanteRef
-            );
-
-          const datosActuales =
-            participanteActual.data();
-
-          // Evitar duplicados
-          if (
-            datosActuales.estadoPago ===
-            "aprobado"
-          ) {
-            return {
-              numeros:
-                datosActuales.numeros || [],
-
-              montoPagado:
-                datosActuales.montoPagado ||
-                datosActuales.montoEsperado,
-
-              yaEstaba: true,
-            };
-          }
-
-          const configuracionSnap =
-            await transaction.get(
-              configuracionRef
-            );
-
-          let ultimoNumero = 0;
-
-          if (configuracionSnap.exists) {
-            ultimoNumero =
-              configuracionSnap.data()
-                .ultimoNumero || 0;
-          }
-
-          const cantidad =
-            Number(
-              datosActuales.cantidadNumeros
-            );
-
-          const numeros = [];
-
-          for (
-            let i = 1;
-            i <= cantidad;
-            i++
-          ) {
-            numeros.push(
-              ultimoNumero + i
-            );
-          }
-
-          const nuevoUltimoNumero =
-            ultimoNumero + cantidad;
-
-          transaction.update(
-            participanteRef,
-            {
-              estadoPago: "aprobado",
-
-              numeros,
-
-              montoPagado:
-                pagoEncontrado.transaction_amount,
-
-              paymentId:
-                String(pagoEncontrado.id),
-
-              fechaPago:
-                FieldValue.serverTimestamp(),
-            }
-          );
-
-          transaction.set(
-            configuracionRef,
-            {
-              ultimoNumero:
-                nuevoUltimoNumero,
-            },
-            {
-              merge: true,
-            }
-          );
-
+        if (datosActuales.estadoPago === "aprobado") {
           return {
-            numeros,
-
+            numeros: datosActuales.numeros || [],
             montoPagado:
-              pagoEncontrado.transaction_amount,
-
-            yaEstaba: false,
+              datosActuales.montoPagado || 0,
           };
         }
+
+        const configRef = db
+          .collection("configuracion")
+          .doc("sorteo");
+
+        const configSnap =
+          await transaction.get(configRef);
+
+        const config =
+          configSnap.exists
+            ? configSnap.data()
+            : {};
+
+        let ultimoNumero =
+          Number(config.ultimoNumero || 0);
+
+        const cantidad =
+          Number(
+            datosActuales.cantidadNumeros || 1
+          );
+
+        const nuevosNumeros = [];
+
+        for (let i = 0; i < cantidad; i++) {
+          ultimoNumero++;
+          nuevosNumeros.push(ultimoNumero);
+        }
+
+        transaction.update(
+          participanteRef,
+          {
+            estadoPago: "aprobado",
+            numeros: nuevosNumeros,
+            montoPagado:
+              pagoEncontrado.transaction_amount,
+            paymentId: String(pagoEncontrado.id),
+            fechaPago:
+              FieldValue.serverTimestamp(),
+          }
+        );
+
+        transaction.set(
+          configRef,
+          {
+            ultimoNumero,
+          },
+          { merge: true }
+        );
+
+        return {
+          numeros: nuevosNumeros,
+          montoPagado:
+            pagoEncontrado.transaction_amount,
+        };
+      }
+    );
+
+    console.log(
+      "Números asignados:",
+      resultado.numeros
+    );
+
+    const participanteFinal =
+      await participanteRef.get();
+
+    const datosFinales =
+      participanteFinal.data();
+
+    if (!datosFinales.emailEnviado) {
+      console.log(
+        "Enviando email a:",
+        datosFinales.email
       );
 
-    // =====================================================
-    // ENVIAR EMAIL
-    // =====================================================
+      await enviarEmailNumeros(
+        datosFinales,
+        resultado.numeros,
+        resultado.montoPagado
+      );
 
-    if (!resultado.yaEstaba) {
-      try {
-        await enviarEmailNumeros({
-          ...participante,
+      await participanteRef.update({
+        emailEnviado: true,
+      });
 
-          numeros:
-            resultado.numeros,
-
-          montoPagado:
-            resultado.montoPagado,
-        });
-
-        await participanteRef.update({
-          emailEnviado: true,
-        });
-
-      } catch (emailError) {
-        console.error(
-          "Error enviando email:",
-          emailError
-        );
-      }
+      console.log("✅ Email enviado");
     }
-
-    // =====================================================
-    // RESPUESTA
-    // =====================================================
 
     return new Response(
       JSON.stringify({
         aprobado: true,
-
-        numeros:
-          resultado.numeros,
-
-        montoPagado:
-          resultado.montoPagado,
+        numeros: resultado.numeros,
+        montoPagado: resultado.montoPagado,
       }),
       {
         status: 200,
-
         headers: {
-          "Content-Type":
-            "application/json",
+          "Content-Type": "application/json",
         },
       }
     );
-
   } catch (error) {
     console.error(
-      "Error verificando pago:",
+      "❌ ERROR VERIFICAR PAGO:",
       error
     );
 
     return new Response(
       JSON.stringify({
-        error:
-          "Error verificando pago",
+        error: error.message,
       }),
       {
         status: 500,
-
         headers: {
-          "Content-Type":
-            "application/json",
+          "Content-Type": "application/json",
         },
       }
     );
@@ -427,106 +330,51 @@ export default async (req) => {
 };
 
 
-// =====================================================
-// EMAIL
-// =====================================================
-
 async function enviarEmailNumeros(
-  participante
+  participante,
+  numeros,
+  montoPagado
 ) {
-  const emailUser =
-    process.env.EMAIL_USER;
-
-  const emailPass =
-    process.env.EMAIL_PASS;
-
-  if (!emailUser || !emailPass) {
-    throw new Error(
-      "EMAIL_USER / EMAIL_PASS no configurados"
-    );
-  }
-
   const transporter =
     nodemailer.createTransport({
       service: "gmail",
-
       auth: {
-        user: emailUser,
-        pass: emailPass,
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
       },
     });
 
-  const numerosHtml =
-    (participante.numeros || [])
-      .map(
-        (n) =>
-          `<span style="
-            display:inline-block;
-            margin:4px;
-            padding:10px 16px;
-            background:#e21f26;
-            color:#ffffff;
-            font-weight:bold;
-            border-radius:8px;
-            font-size:18px;
-          ">${n}</span>`
-      )
-      .join("");
+  const numerosHTML = numeros
+    .map(
+      (numero) =>
+        `<strong style="font-size:24px;">${numero}</strong>`
+    )
+    .join(" - ");
 
   await transporter.sendMail({
-    from: `"Motor Win" <${emailUser}>`,
-
+    from: `"Motor Win" <${process.env.EMAIL_USER}>`,
     to: participante.email,
-
-    subject:
-      "¡Tu participación en el sorteo Motor Win fue confirmada!",
-
+    subject: "🎉 ¡Tus números de Motor Win!",
     html: `
-      <div style="
-        font-family:Arial,sans-serif;
-        max-width:520px;
-        margin:auto;
-      ">
+      <div style="font-family:Arial,sans-serif;">
+        <h2>¡Pago confirmado, ${participante.nombre}!</h2>
 
-        <h2 style="color:#111;">
-          ¡Gracias por participar,
-          ${participante.nombre}!
-        </h2>
+        <p>Tu pago fue aprobado correctamente.</p>
+
+        <p>Tus números para el sorteo son:</p>
+
+        <p>${numerosHTML}</p>
+
+        <p><strong>Monto pagado:</strong> $${montoPagado}</p>
 
         <p>
-          Confirmamos tu pago de
-          <strong>
-            $${participante.montoPagado}
-          </strong>.
+          El sorteo se realizará el
+          <strong>jueves 24 de septiembre de 2026 a las 22:00 hs.</strong>
         </p>
 
         <p>
-          Estos son tus números
-          para el sorteo:
+          ¡Mucha suerte! 🏎️🔥
         </p>
-
-        <div style="margin:16px 0;">
-          ${numerosHtml}
-        </div>
-
-        <p>
-          📅 Sorteo:
-          Jueves 24 de septiembre de 2026,
-          22:00 hs, en vivo por YouTube.
-        </p>
-
-        <p>
-          ¡Mucha suerte! 🏍️
-        </p>
-
-        <p style="
-          color:#888;
-          font-size:12px;
-          margin-top:24px;
-        ">
-          Motor Win
-        </p>
-
       </div>
     `,
   });
