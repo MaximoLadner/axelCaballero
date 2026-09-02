@@ -1,6 +1,6 @@
 import { useState } from "react";
+
 import {
-  registrarParticipante,
   obtenerPromociones,
 } from "../services/participanteService";
 
@@ -33,34 +33,31 @@ function Sorteo() {
     return;
   }
 
+  if (!nombre || !email || !telefono) {
+    alert("Completá todos tus datos.");
+    return;
+  }
+
   try {
     setProcesando(true);
 
-    const response = await fetch(
-      "http://127.0.0.1:5001/sorteos-web-93312/us-central1/crearPreferencia",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          promocionId,
-          nombre,
-          email,
-          telefono,
-        }),
-      }
-    );
+    // Links de Mercado Pago
+    const linksPago = {
+      individual:
+        "https://mpago.la/1136cpi", // $1 - PRUEBA
+      duo:
+        "ACA_VA_EL_LINK_DE_10000",
+      trio:
+        "ACA_VA_EL_LINK_DE_15000",
+    };
 
-    const data = await response.json();
+    const linkPago = linksPago[promocionId];
 
-    if (!response.ok) {
-      throw new Error(
-        data.error || "No se pudo crear el pago."
-      );
+    if (!linkPago) {
+      throw new Error("No existe un link de pago para esta promoción.");
     }
 
-    // Guardamos estos datos por si los necesitamos al volver.
+    // Guardamos los datos del participante antes de enviarlo a Mercado Pago.
     localStorage.setItem(
       "datosParticipante",
       JSON.stringify({
@@ -71,16 +68,14 @@ function Sorteo() {
       })
     );
 
-    // Redirigimos al checkout de Mercado Pago.
-    window.location.href = data.initPoint;
+    // Redirigimos al link de Mercado Pago.
+    window.location.href = linkPago;
   } catch (error) {
-    console.error("Error iniciando Mercado Pago:", error);
+    console.error("Error iniciando el pago:", error);
     alert("No se pudo iniciar el pago.");
-  } finally {
     setProcesando(false);
   }
 };
-
   /*
    * ==========================================
    * PANTALLA DE ÉXITO
@@ -912,6 +907,8 @@ function Sorteo() {
 
         </div>
       </div>
+
+      <p>presiona aca: <a href="https://mpago.la/1136cpi" target="_blank" rel="noopener noreferrer">Link de pago</a></p>
     </footer>
 
     </div>
