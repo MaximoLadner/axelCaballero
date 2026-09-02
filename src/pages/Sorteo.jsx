@@ -1,10 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   obtenerPromociones,
 } from "../services/participanteService";
-
-import emailjs from "@emailjs/browser";
 
 import logo from "../../public/logo.jpeg";
 import { FaFacebookF, FaInstagram, FaGoogle } from "react-icons/fa";
@@ -41,23 +39,40 @@ function Sorteo() {
   try {
     setProcesando(true);
 
-    // Links de Mercado Pago
-    const linksPago = {
-      individual:
-        "https://mpago.la/1136cpi", // $1 - PRUEBA
-      duo:
-        "ACA_VA_EL_LINK_DE_10000",
-      trio:
-        "ACA_VA_EL_LINK_DE_15000",
-    };
+    const respuesta = await fetch(
+      "https://southamerica-east1-sorteos-web-93312.cloudfunctions.net/crearParticipantePendiente",
+      {
+        method: "POST",
 
-    const linkPago = linksPago[promocionId];
+        headers: {
+          "Content-Type": "application/json",
+        },
 
-    if (!linkPago) {
-      throw new Error("No existe un link de pago para esta promoción.");
+        body: JSON.stringify({
+          nombre,
+          email,
+          telefono,
+          promocionId,
+        }),
+      }
+    );
+
+    const datos = await respuesta.json();
+
+    if (!respuesta.ok) {
+      throw new Error(
+        datos.error ||
+          "No se pudo crear la participación."
+      );
     }
 
-    // Guardamos los datos del participante antes de enviarlo a Mercado Pago.
+    // Guardamos el ID que Firebase generó
+    localStorage.setItem(
+      "participanteId",
+      datos.participanteId
+    );
+
+    // Guardamos también los datos
     localStorage.setItem(
       "datosParticipante",
       JSON.stringify({
@@ -65,14 +80,49 @@ function Sorteo() {
         email,
         telefono,
         promocionId,
+        participanteId:
+          datos.participanteId,
       })
     );
 
-    // Redirigimos al link de Mercado Pago.
+
+    // ============================================
+    // LINKS FIJOS
+    // Solo "individual" tiene un link real por ahora.
+    // ============================================
+
+    const linksPago = {
+      individual:
+        "https://mpago.la/1136cpi",
+    };
+
+
+    const linkPago =
+      linksPago[promocionId];
+
+
+    if (!linkPago) {
+      throw new Error(
+        "No existe un link de pago para esta promoción."
+      );
+    }
+
+
+    // Abrimos Mercado Pago
     window.location.href = linkPago;
+
   } catch (error) {
-    console.error("Error iniciando el pago:", error);
-    alert("No se pudo iniciar el pago.");
+
+    console.error(
+      "Error iniciando pago:",
+      error
+    );
+
+    alert(
+      error.message ||
+        "No se pudo iniciar el pago."
+    );
+
     setProcesando(false);
   }
 };
@@ -81,6 +131,97 @@ function Sorteo() {
    * PANTALLA DE ÉXITO
    * ==========================================
    */
+
+  useEffect(() => {
+  const participanteId =
+    localStorage.getItem(
+      "participanteId"
+    );
+
+  if (!participanteId) {
+    return;
+  }
+
+
+  const verificarPago = async () => {
+    try {
+
+      const respuesta =
+        await fetch(
+          "https://southamerica-east1-sorteos-web-93312.cloudfunctions.net/verificarPago",
+          {
+            method: "POST",
+
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+
+            body: JSON.stringify({
+              participanteId,
+            }),
+          }
+        );
+
+
+      const datos =
+        await respuesta.json();
+
+
+      if (
+        datos.aprobado === true
+      ) {
+
+        setNumeros(
+          datos.numeros || []
+        );
+
+        setMontoPagado(
+          datos.montoPagado || 0
+        );
+
+        setRegistrado(true);
+
+        setProcesando(false);
+
+
+        localStorage.removeItem(
+          "participanteId"
+        );
+
+        localStorage.removeItem(
+          "datosParticipante"
+        );
+      }
+
+    } catch (error) {
+
+      console.error(
+        "Error verificando pago:",
+        error
+      );
+
+    }
+  };
+
+
+  // Primera comprobación
+  verificarPago();
+
+
+  // Después cada 5 segundos
+  const intervalo =
+    setInterval(
+      verificarPago,
+      5000
+    );
+
+
+  return () => {
+    clearInterval(intervalo);
+  };
+
+}, []);
 
   if (registrado) {
     return (
@@ -399,7 +540,7 @@ function Sorteo() {
                   icono: "✅",
                   titulo: "Recibí tus números",
                   texto:
-                    "Una vez registrada tu participación, recibirás automáticamente tus números por email.",
+                    "Una vez que confirmamos tu pago, recibirás automáticamente tus números por email.",
                 },
                 {
                   numero: "4",
@@ -443,13 +584,6 @@ function Sorteo() {
 
 
         {/* =====================================
-            PREMIOS
-        ===================================== */}
-
-       
-
-
-        {/* =====================================
             PROMOCIONES
         ===================================== */}
 
@@ -479,9 +613,10 @@ function Sorteo() {
           {/* PROMOCIONES */}
           <div className="max-w-3xl flex flex-col gap-4">
 
-            {promociones.map((promo, index) => {
+            {promociones.map((promo) => {
 
               const seleccionada = promocionId === promo.id;
+              const esDisponible = promo.disponible !== false;
 
               const esPopular = promo.id === "duo";
               const esMejorValor = promo.id === "pack5";
@@ -490,25 +625,33 @@ function Sorteo() {
 
                 <label
                   key={promo.id}
-                  className="cursor-pointer group"
+                  className={esDisponible ? "cursor-pointer group" : "cursor-not-allowed"}
                 >
 
                   <div
                     className={`w-full rounded-xl p-6 flex flex-col sm:flex-row sm:items-center justify-between transition-all duration-200 relative overflow-hidden ${
-                      seleccionada
+                      !esDisponible
+                        ? "border border-[#2a2a2a] bg-[#101010] opacity-50"
+                        : seleccionada
                         ? "border-[1.5px] border-[#e21f26] bg-gradient-to-r from-[#e21f26]/10 to-transparent shadow-[0_0_20px_rgba(226,31,38,0.15)]"
                         : "border border-[#2a2a2a] bg-[#141414] hover:border-[#e21f26]/50 hover:bg-[#1a1a1a]"
                     }`}
                   >
 
                     {/* BADGES */}
-                    {esPopular && (
+                    {!esDisponible && (
+                      <div className="absolute top-0 right-0 bg-[#1c1c1c] text-[#8a8a8a] font-semibold text-xs px-4 py-1 rounded-bl-lg border-b border-l border-[#2a2a2a]">
+                        Próximamente
+                      </div>
+                    )}
+
+                    {esDisponible && esPopular && (
                       <div className="absolute top-0 right-0 bg-[#e21f26] text-white font-semibold text-xs px-4 py-1 rounded-bl-lg">
                         Más Popular
                       </div>
                     )}
 
-                    {esMejorValor && (
+                    {esDisponible && esMejorValor && (
                       <div className="absolute top-0 right-0 bg-[#1c1c1c] text-[#ff6259] font-semibold text-xs px-4 py-1 rounded-bl-lg border-b border-l border-[#2a2a2a]">
                         Mejor Valor
                       </div>
@@ -546,7 +689,7 @@ function Sorteo() {
                             ? "Chance"
                             : "Chances"}
 
-                          {esMejorValor && (
+                          {esDisponible && esMejorValor && (
                             <span className="ml-2 px-2 py-0.5 rounded text-xs font-bold bg-[#2a0f0e] text-[#e21f26] border border-[#e21f26]/30">
                               BONUS
                             </span>
@@ -576,7 +719,9 @@ function Sorteo() {
                     name="chance_selection"
                     value={promo.id}
                     checked={seleccionada}
+                    disabled={!esDisponible}
                     onChange={() => {
+                      if (!esDisponible) return;
                       setPromocionId(promo.id);
                       setMostrarFormulario(true);
                     }}
@@ -907,8 +1052,7 @@ function Sorteo() {
 
         </div>
       </div>
-
-      <p>presiona aca: <a href="https://mpago.la/1136cpi" target="_blank" rel="noopener noreferrer">Link de pago</a></p>
+      
     </footer>
 
     </div>
