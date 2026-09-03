@@ -15,6 +15,7 @@ import {
   FaInstagram,
   FaGoogle,
 } from "react-icons/fa";
+import { Link } from "wouter";
 
 // ==========================================
 // CARRUSEL DEL HERO
@@ -2148,19 +2149,19 @@ const handleSeleccionarComprobante = (
 
             <div className="flex gap-6 text-sm text-gray-500">
 
-              <a
-                href="#"
-                className="hover:text-white transition-colors"
-              >
-                Términos y condiciones
-              </a>
+             <Link
+              to="/terminos"
+              className="hover:text-white transition"
+            >
+              Términos y condiciones
+            </Link>
 
-              <a
-                href="#"
-                className="hover:text-white transition-colors"
-              >
-                Política de privacidad
-              </a>
+            <Link
+              to="/privacidad"
+              className="hover:text-white transition"
+            >
+              Política de privacidad
+            </Link>
 
             </div>
 
