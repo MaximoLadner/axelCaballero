@@ -1494,7 +1494,7 @@ const handleSeleccionarComprobante = (
                   icono: "📸",
                   titulo: "Enviá el comprobante",
                   texto:
-                    "Verificamos tu pago y te mandamos los números por email.",
+                    "Verificamos tu pago y te mandamos los números por email. (REBISAR CASILLA DE SPAM)",
                 },
               ].map((paso) => (
 
