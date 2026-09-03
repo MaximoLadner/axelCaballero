@@ -12,7 +12,32 @@ const OPENROUTER_URL =
 
 const MODELO = "google/gemini-2.5-flash";
 
+// =====================================================
+// DATOS DE LA CUENTA DESTINO
+// =====================================================
 
+// IMPORTANTE:
+// Si vas a usar Mercado Pago, reemplazá estos datos
+// por el CVU y titular reales de tu cuenta.
+
+const CUENTA_ESPERADA = "0000003100058277014581";
+
+const TITULAR_ESPERADO = "Máximo Ladner";
+
+// Confianza mínima para aprobar
+const CONFIANZA_MINIMA = 80;
+
+
+// =====================================================
+// CORS
+// =====================================================
+
+const headers = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Content-Type": "application/json",
+};
 
 
 // =====================================================
@@ -158,12 +183,6 @@ export const handler = async (event) => {
 
     // =================================================
     // SI YA ESTÁ APROBADO
-    // =================================================
-    //
-    // Nunca se manda el mail acá: si ya está aprobado,
-    // significa que el mail ya se mandó la primera vez.
-    // Esto evita mails duplicados si el usuario reenvía
-    // el comprobante o refresca la página.
     // =================================================
 
     if (pedido.estadoPago === "aprobado") {
@@ -602,65 +621,37 @@ Reglas:
       );
 
 
-      // =============================================
-      // ENVIAR MAIL DE CONFIRMACIÓN (EmailJS)
-      // =============================================
-      //
-      // Usamos "pedido" (lo que ya estaba en Firestore
-      // desde crearPedido.mjs) porque ahí están nombre,
-      // email, numeros, cantidadNumeros y monto reales.
-      // Si esto falla, NO rompe la respuesta al usuario:
-      // el pago ya quedó aprobado igual.
-      // =============================================
-
-      
-
-
       return {
         statusCode: 200,
 
         headers,
 
         body: JSON.stringify({
-  ok: true,
 
-  aprobado: true,
+          ok: true,
 
-  mensaje:
-    "¡Pago aprobado! Tu participación quedó confirmada.",
+          aprobado: true,
 
-  pedidoId,
+          mensaje:
+            "¡Pago aprobado! Tu participación quedó confirmada.",
 
-  nombre: pedido.nombre || "",
-  email: pedido.email || "",
-  monto: pedido.monto || 0,
-  cantidadNumeros: pedido.cantidadNumeros || 0,
-  numeros: pedido.numeros || [],
+          comprobante: {
 
-  comprobante: {
-    monto: montoDetectado,
+            monto:
+              montoDetectado,
 
-    titular:
-      resultadoIA.titular_destino || "",
+            titular:
+              resultadoIA.titular_destino || "",
 
-    cbu:
-      cuentaDetectada,
+            fecha:
+              resultadoIA.fecha || "",
 
-    fecha:
-      resultadoIA.fecha || "",
+            hora:
+              resultadoIA.hora || "",
 
-    hora:
-      resultadoIA.hora || "",
+          },
 
-    estado:
-      resultadoIA.estado || "",
-
-    confianza,
-
-    numeros:
-      pedido.numeros || [],
-  },
-}),
+        }),
       };
     }
 
@@ -756,3 +747,4 @@ Reglas:
     };
   }
 };
+
