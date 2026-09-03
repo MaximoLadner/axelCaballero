@@ -2147,23 +2147,7 @@ const handleSeleccionarComprobante = (
               © {new Date().getFullYear()} Motor Win. Todos los derechos reservados.
             </p>
 
-            <div className="flex gap-6 text-sm text-gray-500">
-
-             <Link
-              to="/terminos"
-              className="hover:text-white transition"
-            >
-              Términos y condiciones
-            </Link>
-
-            <Link
-              to="/privacidad"
-              className="hover:text-white transition"
-            >
-              Política de privacidad
-            </Link>
-
-            </div>
+            
 
           </div>
 
