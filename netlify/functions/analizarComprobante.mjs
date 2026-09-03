@@ -12,118 +12,7 @@ const OPENROUTER_URL =
 
 const MODELO = "google/gemini-2.5-flash";
 
-// =====================================================
-// EMAILJS (envío de mail al aprobar el pago)
-// =====================================================
 
-const EMAILJS_SERVICE_ID = process.env.EMAILJS_SERVICE_ID;
-const EMAILJS_TEMPLATE_ID = process.env.EMAILJS_TEMPLATE_ID;
-const EMAILJS_PUBLIC_KEY = process.env.EMAILJS_PUBLIC_KEY;
-const EMAILJS_PRIVATE_KEY = process.env.EMAILJS_PRIVATE_KEY;
-
-const EMAILJS_URL =
-  "https://api.emailjs.com/api/v1.0/email/send";
-
-// =====================================================
-// DATOS DE LA CUENTA DESTINO
-// =====================================================
-
-// IMPORTANTE:
-// Si vas a usar Mercado Pago, reemplazá estos datos
-// por el CVU y titular reales de tu cuenta.
-
-const CUENTA_ESPERADA = "0000003100058277014581";
-
-const TITULAR_ESPERADO = "Máximo Ladner";
-
-// Confianza mínima para aprobar
-const CONFIANZA_MINIMA = 80;
-
-
-// =====================================================
-// CORS
-// =====================================================
-
-const headers = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "Content-Type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Content-Type": "application/json",
-};
-
-
-// =====================================================
-// ENVIAR EMAIL DE CONFIRMACIÓN
-// =====================================================
-//
-// Se llama SOLO cuando el pago queda aprobado. Si falla,
-// no debe romper la respuesta al usuario: el pago ya está
-// aprobado en Firestore, el mail es un "extra". Por eso
-// va en su propio try/catch y solo logueamos el error.
-// =====================================================
-
-async function enviarEmailConfirmacion(pedido) {
-
-  if (
-    !EMAILJS_SERVICE_ID ||
-    !EMAILJS_TEMPLATE_ID ||
-    !EMAILJS_PUBLIC_KEY ||
-    !EMAILJS_PRIVATE_KEY
-  ) {
-    console.error(
-      "EMAILJS: faltan variables de entorno (EMAILJS_SERVICE_ID / EMAILJS_TEMPLATE_ID / EMAILJS_PUBLIC_KEY / EMAILJS_PRIVATE_KEY). No se envía el mail."
-    );
-    return;
-  }
-
-  try {
-
-    const numerosFormateados = Array.isArray(pedido.numeros)
-      ? pedido.numeros.join("\n")
-      : "";
-
-    const respuestaEmail = await fetch(EMAILJS_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        service_id: EMAILJS_SERVICE_ID,
-        template_id: EMAILJS_TEMPLATE_ID,
-        user_id: EMAILJS_PUBLIC_KEY,
-        // La Private Key como accessToken permite llamar a la API
-        // desde un servidor (sin depender del check de origen del navegador).
-        accessToken: EMAILJS_PRIVATE_KEY,
-        template_params: {
-          nombre: pedido.nombre || "",
-          // "email" no aparece como texto visible en tu plantilla, pero
-          // EmailJS lo necesita para resolver el campo "To Email" del template.
-          email: pedido.email || "",
-          time: new Date().toLocaleString("es-AR", {
-            timeZone: "America/Argentina/Buenos_Aires",
-          }),
-          cantidadNumeros: pedido.cantidadNumeros || 0,
-          numeros: numerosFormateados,
-          montoPagado: pedido.monto || 0,
-        },
-      }),
-    });
-
-    if (!respuestaEmail.ok) {
-      const detalleError = await respuestaEmail.text();
-      console.error(
-        "EMAILJS ERROR:",
-        respuestaEmail.status,
-        detalleError
-      );
-    } else {
-      console.log("EMAILJS: mail enviado a", pedido.email);
-    }
-
-  } catch (error) {
-    console.error("EMAILJS EXCEPCIÓN:", error);
-  }
-}
 
 
 // =====================================================
@@ -724,7 +613,7 @@ Reglas:
       // el pago ya quedó aprobado igual.
       // =============================================
 
-      await enviarEmailConfirmacion(pedido);
+      
 
 
       return {
@@ -733,36 +622,45 @@ Reglas:
         headers,
 
         body: JSON.stringify({
+  ok: true,
 
-          ok: true,
+  aprobado: true,
 
-          aprobado: true,
+  mensaje:
+    "¡Pago aprobado! Tu participación quedó confirmada.",
 
-          mensaje:
-            "¡Pago aprobado! Tu participación quedó confirmada.",
+  pedidoId,
 
-          comprobante: {
+  nombre: pedido.nombre || "",
+  email: pedido.email || "",
+  monto: pedido.monto || 0,
+  cantidadNumeros: pedido.cantidadNumeros || 0,
+  numeros: pedido.numeros || [],
 
-            monto:
-              montoDetectado,
+  comprobante: {
+    monto: montoDetectado,
 
-            titular:
-              resultadoIA.titular_destino || "",
+    titular:
+      resultadoIA.titular_destino || "",
 
-            fecha:
-              resultadoIA.fecha || "",
+    cbu:
+      cuentaDetectada,
 
-            hora:
-              resultadoIA.hora || "",
+    fecha:
+      resultadoIA.fecha || "",
 
-            // FIX: antes el frontend no recibía los números
-            // asignados, así que no podía mostrarlos.
-            numeros:
-              pedido.numeros || [],
+    hora:
+      resultadoIA.hora || "",
 
-          },
+    estado:
+      resultadoIA.estado || "",
 
-        }),
+    confianza,
+
+    numeros:
+      pedido.numeros || [],
+  },
+}),
       };
     }
 

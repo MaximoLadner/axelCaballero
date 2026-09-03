@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import emailjs from "@emailjs/browser";
 
 import {
   obtenerPromociones,
@@ -290,18 +291,44 @@ const analizarComprobante = async (archivo) => {
 
 
     if (datos.aprobado) {
+  try {
+    const numeros = datos.numeros || datos.comprobante?.numeros || [];
 
-      alert(
-        "¡Pago aprobado! Te enviamos tus números por email."
+    const emailEnviadoKey = `email_enviado_${pedidoId}`;
+
+    // Evita mandar el mismo email dos veces si el usuario reintenta
+    if (!localStorage.getItem(emailEnviadoKey)) {
+      await emailjs.send(
+        "service_ox6nl4h",
+        "template_sorteo",
+        {
+          nombre: nombre,
+          email: email,
+          time: new Date().toLocaleString("es-AR"),
+          cantidadNumeros: numeros.length,
+          numeros: numeros.join(", "),
+          montoPagado: datos.monto || monto,
+        },
+        {
+          publicKey: "DRdm2ePkprgMAafMZ",
+        }
       );
 
-    } else {
+      localStorage.setItem(emailEnviadoKey, "true");
 
-      alert(
-        datos.mensaje ||
-        "No pudimos validar el comprobante."
-      );
+      console.log("EMAIL ENVIADO CORRECTAMENTE");
     }
+
+    alert("¡Pago aprobado! Te enviamos tus números por email.");
+  } catch (error) {
+    console.error("EMAILJS ERROR:", error);
+    alert(
+      "¡Pago aprobado! Tus números fueron confirmados, pero hubo un problema enviando el email."
+    );
+  }
+} else {
+  alert("El comprobante fue rechazado.");
+}
 
 
   } catch (error) {
