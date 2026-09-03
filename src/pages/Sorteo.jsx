@@ -1323,9 +1323,7 @@ const handleSeleccionarComprobante = (
               ))}
 
 
-              <div className="absolute top-4 right-4 bg-[#e21f26] text-white font-semibold px-4 py-1.5 rounded-full flex items-center gap-2 shadow-lg z-10">
-                🎟️ Sorteo
-              </div>
+              
 
 
               {/* FLECHA ANTERIOR */}
