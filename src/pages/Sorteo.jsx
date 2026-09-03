@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import emailjs from "@emailjs/browser";
 
 import {
   obtenerPromociones,
@@ -22,6 +23,15 @@ import {
 // Definido fuera del componente para no recrear
 // el array en cada render.
 const IMAGENES_CARRUSEL = [foto1, foto2, foto3, foto4, foto5];
+
+// ==========================================
+// EMAILJS (mail de confirmación al aprobar el pago)
+// ==========================================
+// La Public Key NO es secreta, está pensada para vivir
+// en el frontend (a diferencia de una API key normal).
+const EMAILJS_SERVICE_ID = "service_ox6nl4h";
+const EMAILJS_TEMPLATE_ID = "template_sorteo";
+const EMAILJS_PUBLIC_KEY = "DRdm2ePkprgMAafMZ";
 
 function Sorteo() {
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
@@ -290,6 +300,53 @@ const analizarComprobante = async (archivo) => {
 
 
     if (datos.aprobado) {
+
+      // ==========================================
+      // ENVIAR MAIL DE CONFIRMACIÓN (EmailJS, desde el navegador)
+      // ==========================================
+      //
+      // Solo mandamos el mail si vienen números en la respuesta.
+      // Si el pedido ya estaba aprobado de antes (ver
+      // analizarComprobante.mjs), el backend no manda "numeros"
+      // en ese caso, así que evitamos reenviar el mail.
+      // ==========================================
+
+      if (datos.comprobante?.numeros?.length > 0) {
+
+        try {
+
+          await emailjs.send(
+            EMAILJS_SERVICE_ID,
+            EMAILJS_TEMPLATE_ID,
+            {
+              nombre,
+              email,
+              cantidadNumeros:
+                datos.comprobante.cantidadNumeros,
+              numeros:
+                datos.comprobante.numeros.join("\n"),
+              montoPagado:
+                datos.comprobante.monto,
+              time: new Date().toLocaleString("es-AR", {
+                timeZone: "America/Argentina/Buenos_Aires",
+              }),
+            },
+            EMAILJS_PUBLIC_KEY
+          );
+
+        } catch (errorEmail) {
+
+          console.error(
+            "Error enviando email de confirmación:",
+            errorEmail
+          );
+
+          // No cortamos el flujo: el pago ya está aprobado en el
+          // backend igual, el mail es un extra. El usuario ya ve
+          // sus números en pantalla aunque el mail falle.
+        }
+
+      }
 
       alert(
         "¡Pago aprobado! Te enviamos tus números por email."

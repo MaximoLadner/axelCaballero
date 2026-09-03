@@ -184,6 +184,12 @@ export const handler = async (event) => {
     // =================================================
     // SI YA ESTÁ APROBADO
     // =================================================
+    //
+    // Nunca se manda el mail acá: si ya está aprobado,
+    // significa que el mail ya se mandó la primera vez.
+    // Esto evita mails duplicados si el usuario reenvía
+    // el comprobante o refresca la página.
+    // =================================================
 
     if (pedido.estadoPago === "aprobado") {
       return {
@@ -649,6 +655,15 @@ Reglas:
             hora:
               resultadoIA.hora || "",
 
+            // FIX: antes el frontend no recibía los números
+            // asignados, así que no podía mostrarlos ni mandarlos
+            // por mail desde acá.
+            numeros:
+              pedido.numeros || [],
+
+            cantidadNumeros:
+              pedido.cantidadNumeros || 0,
+
           },
 
         }),
@@ -747,4 +762,3 @@ Reglas:
     };
   }
 };
-
