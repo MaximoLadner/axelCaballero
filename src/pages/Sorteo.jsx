@@ -93,6 +93,27 @@ function Sorteo() {
   }, []);
 
   // ==========================================
+  // FIX: bloquear el scroll del body cuando el
+  // popup del formulario está abierto (mobile y
+  // desktop), para que no se pueda scrollear el
+  // fondo detrás del modal.
+  // ==========================================
+
+  useEffect(() => {
+
+    if (mostrarFormulario) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+
+    return () => {
+      document.body.style.overflow = "";
+    };
+
+  }, [mostrarFormulario]);
+
+  // ==========================================
   // DATOS DE TRANSFERENCIA
   // ==========================================
 
@@ -179,15 +200,34 @@ function Sorteo() {
       );
 
       // ==========================================
-      // MOSTRAR PANTALLA DEL PEDIDO
+      // CERRAR EL POPUP Y MOSTRAR PANTALLA DEL PEDIDO
       // ==========================================
 
       setProcesando(false);
+      setMostrarFormulario(false);
       setPedidoRealizado(true);
 
-      window.scrollTo({
-        top: 0,
-        behavior: "smooth",
+      // ==========================================
+      // FIX: el scroll al tope se pedía ANTES de que
+      // React terminara de renderizar la nueva pantalla
+      // de "pedido realizado", así que el navegador
+      // scrolleaba al tope de la pantalla VIEJA y, apenas
+      // se pintaba la nueva (mucho más alta), quedabas
+      // viendo la mitad/el final en vez del principio
+      // (sobre todo en mobile). Con requestAnimationFrame
+      // (doble, para asegurar que ya pintó) el scroll se
+      // aplica recién cuando el contenido nuevo ya está
+      // en el DOM.
+      // ==========================================
+
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          window.scrollTo({
+            top: 0,
+            left: 0,
+            behavior: "instant",
+          });
+        });
       });
 
     } catch (error) {
@@ -428,6 +468,31 @@ const handleSeleccionarComprobante = (
         "No se pudo copiar el CBU."
       );
     }
+  };
+
+  // ==========================================
+  // ABRIR POPUP DE FORMULARIO
+  // ==========================================
+  //
+  // FIX: antes esto hacía scrollIntoView hasta el
+  // formulario (que vivía embebido más abajo en la
+  // página). Ahora el formulario es un popup centrado
+  // en pantalla, así que ya no hace falta scrollear:
+  // simplemente se abre el modal.
+  // ==========================================
+
+  const abrirFormulario = (idPromo) => {
+
+    if (idPromo) {
+      setPromocionId(idPromo);
+    }
+
+    if (!idPromo && !promocionId) {
+      alert("Primero seleccioná una promoción.");
+      return;
+    }
+
+    setMostrarFormulario(true);
   };
 
   // ==========================================
@@ -1222,28 +1287,7 @@ const handleSeleccionarComprobante = (
 
 
             <button
-              onClick={() => {
-
-                if (!promocionId) {
-                  alert(
-                    "Primero seleccioná una promoción."
-                  );
-                  return;
-                }
-
-                setMostrarFormulario(true);
-
-                setTimeout(() => {
-
-                  document
-                    .getElementById("formulario")
-                    ?.scrollIntoView({
-                      behavior: "smooth",
-                    });
-
-                }, 100);
-
-              }}
+              onClick={() => abrirFormulario()}
               className="flex items-center gap-2 px-5 md:px-6 py-2 rounded-full border border-[#e21f26] text-[#e21f26] font-semibold hover:bg-[#e21f26] hover:text-white transition"
             >
 
@@ -1674,8 +1718,7 @@ const handleSeleccionarComprobante = (
 
                       if (!esDisponible) return;
 
-                      setPromocionId(promo.id);
-                      setMostrarFormulario(true);
+                      abrirFormulario(promo.id);
 
                     }}
                     className="hidden"
@@ -1688,235 +1731,10 @@ const handleSeleccionarComprobante = (
             })}
 
 
-            {/* FORMULARIO */}
-
-            {mostrarFormulario && (
-
-              <div
-                id="formulario"
-                className="mt-8 bg-[#141414] border border-[#2a2a2a] rounded-2xl p-6 md:p-8"
-              >
-
-                <div className="mb-8">
-
-                  <div className="flex items-center gap-3 mb-2">
-
-                    <div className="w-10 h-10 rounded-lg bg-[#e21f26]/10 border border-[#e21f26]/30 flex items-center justify-center">
-                      👤
-                    </div>
-
-                    <h3 className="text-2xl font-bold text-white">
-                      Completá tus datos
-                    </h3>
-
-                  </div>
-
-                  <p className="text-[#c9c9c9]">
-                    Necesitamos estos datos para generar tu pedido.
-                  </p>
-
-                </div>
-
-
-                <form
-                  onSubmit={handleSubmit}
-                  className="space-y-5"
-                >
-
-                  {/* NOMBRE */}
-
-                  <div>
-
-                    <label className="block font-semibold text-white mb-2">
-                      Nombre completo
-                    </label>
-
-                    <input
-                      type="text"
-                      required
-                      value={nombre}
-                      onChange={(e) =>
-                        setNombre(e.target.value)
-                      }
-                      className="w-full bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg px-4 py-3 text-white outline-none focus:border-[#e21f26] focus:ring-1 focus:ring-[#e21f26] transition"
-                      placeholder="Juan Pérez"
-                    />
-
-                  </div>
-
-
-                  {/* EMAIL */}
-
-                  <div>
-
-                    <label className="block font-semibold text-white mb-2">
-                      Email
-                    </label>
-
-                    <input
-                      type="email"
-                      required
-                      value={email}
-                      onChange={(e) =>
-                        setEmail(e.target.value)
-                      }
-                      className="w-full bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg px-4 py-3 text-white outline-none focus:border-[#e21f26] focus:ring-1 focus:ring-[#e21f26] transition"
-                      placeholder="juan@gmail.com"
-                    />
-
-                  </div>
-
-
-                  {/* TELEFONO */}
-
-                  <div>
-
-                    <label className="block font-semibold text-white mb-2">
-                      Teléfono
-                    </label>
-
-                    <input
-                      type="tel"
-                      required
-                      value={telefono}
-                      onChange={(e) =>
-                        setTelefono(e.target.value)
-                      }
-                      className="w-full bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg px-4 py-3 text-white outline-none focus:border-[#e21f26] focus:ring-1 focus:ring-[#e21f26] transition"
-                      placeholder="3364..."
-                    />
-
-                  </div>
-
-
-                  {/* RESUMEN */}
-
-                  {promocionId && (
-
-                    <div className="bg-[#0a0a0a] border border-[#2a2a2a] rounded-xl p-5">
-
-                      <p className="text-sm text-[#8a8a8a] mb-1">
-                        Promoción seleccionada
-                      </p>
-
-                      <div className="flex items-center justify-between gap-4">
-
-                        <div>
-
-                          <p className="text-white font-bold text-lg">
-
-                            {
-                              promociones.find(
-                                (p) =>
-                                  p.id === promocionId
-                              )?.cantidadNumeros
-                            }{" "}
-
-                            {
-                              promociones.find(
-                                (p) =>
-                                  p.id === promocionId
-                              )?.cantidadNumeros === 1
-                                ? "Chance"
-                                : "Chances"
-                            }
-
-                          </p>
-
-                        </div>
-
-                        <p className="text-xl font-bold text-[#e21f26]">
-
-                          $
-
-                          {promociones
-                            .find(
-                              (p) =>
-                                p.id === promocionId
-                            )
-                            ?.precio.toLocaleString(
-                              "es-AR"
-                            )}
-
-                        </p>
-
-                      </div>
-
-                    </div>
-
-                  )}
-
-
-                  {/* BOTÓN */}
-
-                  <button
-                    type="submit"
-                    disabled={procesando}
-                    className={`w-full px-8 py-4 rounded-lg font-bold text-lg flex items-center justify-center gap-2 transition ${
-                      procesando
-                        ? "bg-[#4d1210] text-[#d98f8b] cursor-not-allowed"
-                        : "bg-[#e21f26] text-white hover:bg-[#b3161c] shadow-lg shadow-[#e21f26]/30"
-                    }`}
-                  >
-
-                    {procesando ? (
-                      <>
-                        <span className="animate-spin">
-                          ⏳
-                        </span>
-
-                        Creando pedido...
-                      </>
-                    ) : (
-                      <>
-                        Crear pedido
-                        <span>→</span>
-                      </>
-                    )}
-
-                  </button>
-
-
-                  <p className="text-center text-xs text-[#8a8a8a]">
-
-                    Al continuar vas a ver los datos para hacer la transferencia.
-                    Tus números se asignan y te llegan por email recién después
-                    de que verifiquemos el comprobante de pago.
-
-                  </p>
-
-                </form>
-
-              </div>
-
-            )}
-
-
             {!mostrarFormulario && (
 
               <button
-                onClick={() => {
-
-                  if (!promocionId) {
-                    alert(
-                      "Seleccioná una promoción."
-                    );
-                    return;
-                  }
-
-                  setMostrarFormulario(true);
-
-                  setTimeout(() => {
-
-                    document
-                      .getElementById("formulario")
-                      ?.scrollIntoView({
-                        behavior: "smooth",
-                      });
-
-                  }, 100);
-
-                }}
+                onClick={() => abrirFormulario()}
                 className="mt-4 w-full md:w-fit px-12 py-4 rounded-lg bg-[#e21f26] text-white font-bold text-lg hover:bg-[#b3161c] transition shadow-lg shadow-[#e21f26]/30 flex items-center justify-center gap-2"
               >
 
@@ -1932,6 +1750,293 @@ const handleSeleccionarComprobante = (
         </section>
 
       </main>
+
+
+      {/* ==========================================
+          POPUP DEL FORMULARIO
+          ==========================================
+          FIX: antes el formulario se insertaba embebido
+          en el medio de la página (debajo de las
+          promociones) y se hacía scrollIntoView hasta él.
+          Ahora es un popup centrado que se abre apenas se
+          elige una promoción, sin mover el scroll de la
+          página de fondo.
+      ========================================== */}
+
+      {mostrarFormulario && (
+
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+          onClick={() => setMostrarFormulario(false)}
+        >
+
+          <div
+            className="w-full max-w-lg max-h-[90vh] overflow-y-auto bg-[#141414] border border-[#2a2a2a] rounded-2xl p-6 md:p-8 relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+
+            {/* CERRAR */}
+
+            <button
+              onClick={() => setMostrarFormulario(false)}
+              aria-label="Cerrar"
+              className="absolute top-4 right-4 text-[#8a8a8a] hover:text-white text-2xl leading-none transition"
+            >
+              ✕
+            </button>
+
+            <div className="mb-8 pr-8">
+
+              <div className="flex items-center gap-3 mb-2">
+
+                <div className="w-10 h-10 rounded-lg bg-[#e21f26]/10 border border-[#e21f26]/30 flex items-center justify-center">
+                  👤
+                </div>
+
+                <h3 className="text-2xl font-bold text-white">
+                  Completá tus datos
+                </h3>
+
+              </div>
+
+              <p className="text-[#c9c9c9]">
+                Necesitamos estos datos para generar tu pedido.
+              </p>
+
+            </div>
+
+
+            <form
+              onSubmit={handleSubmit}
+              className="space-y-5"
+            >
+
+              {/* NOMBRE */}
+
+              <div>
+
+                <label className="block font-semibold text-white mb-2">
+                  Nombre completo
+                </label>
+
+                <input
+                  type="text"
+                  required
+                  value={nombre}
+                  onChange={(e) =>
+                    setNombre(e.target.value)
+                  }
+                  className="w-full bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg px-4 py-3 text-white outline-none focus:border-[#e21f26] focus:ring-1 focus:ring-[#e21f26] transition"
+                  placeholder="Juan Pérez"
+                />
+
+              </div>
+
+
+              {/* EMAIL */}
+
+              <div>
+
+                <label className="block font-semibold text-white mb-2">
+                  Email
+                </label>
+
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) =>
+                    setEmail(e.target.value)
+                  }
+                  className="w-full bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg px-4 py-3 text-white outline-none focus:border-[#e21f26] focus:ring-1 focus:ring-[#e21f26] transition"
+                  placeholder="juan@gmail.com"
+                />
+
+              </div>
+
+
+              {/* TELEFONO */}
+
+              <div>
+
+                <label className="block font-semibold text-white mb-2">
+                  Teléfono
+                </label>
+
+                <input
+                  type="tel"
+                  required
+                  value={telefono}
+                  onChange={(e) =>
+                    setTelefono(e.target.value)
+                  }
+                  className="w-full bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg px-4 py-3 text-white outline-none focus:border-[#e21f26] focus:ring-1 focus:ring-[#e21f26] transition"
+                  placeholder="3364..."
+                />
+
+              </div>
+
+
+              {/* PROMOCIÓN (elegible también acá adentro) */}
+
+              <div>
+
+                <label className="block font-semibold text-white mb-2">
+                  Promoción
+                </label>
+
+                <div className="grid grid-cols-1 gap-2">
+
+                  {promociones
+                    .filter((p) => p.disponible !== false)
+                    .map((promo) => {
+
+                      const seleccionada =
+                        promocionId === promo.id;
+
+                      return (
+
+                        <button
+                          type="button"
+                          key={promo.id}
+                          onClick={() =>
+                            setPromocionId(promo.id)
+                          }
+                          className={`w-full text-left rounded-lg border px-4 py-3 flex items-center justify-between transition ${
+                            seleccionada
+                              ? "border-[#e21f26] bg-[#e21f26]/10"
+                              : "border-[#2a2a2a] bg-[#0a0a0a] hover:border-[#e21f26]/50"
+                          }`}
+                        >
+
+                          <span className="text-white font-semibold">
+
+                            {promo.cantidadNumeros}{" "}
+
+                            {promo.cantidadNumeros === 1
+                              ? "Chance"
+                              : "Chances"}
+
+                          </span>
+
+                          <span className="text-[#e21f26] font-bold">
+                            ${promo.precio.toLocaleString("es-AR")}
+                          </span>
+
+                        </button>
+
+                      );
+
+                    })}
+
+                </div>
+
+              </div>
+
+
+              {/* RESUMEN */}
+
+              {promocionId && (
+
+                <div className="bg-[#0a0a0a] border border-[#2a2a2a] rounded-xl p-5">
+
+                  <p className="text-sm text-[#8a8a8a] mb-1">
+                    Promoción seleccionada
+                  </p>
+
+                  <div className="flex items-center justify-between gap-4">
+
+                    <div>
+
+                      <p className="text-white font-bold text-lg">
+
+                        {
+                          promociones.find(
+                            (p) =>
+                              p.id === promocionId
+                          )?.cantidadNumeros
+                        }{" "}
+
+                        {
+                          promociones.find(
+                            (p) =>
+                              p.id === promocionId
+                          )?.cantidadNumeros === 1
+                            ? "Chance"
+                            : "Chances"
+                        }
+
+                      </p>
+
+                    </div>
+
+                    <p className="text-xl font-bold text-[#e21f26]">
+
+                      $
+
+                      {promociones
+                        .find(
+                          (p) =>
+                            p.id === promocionId
+                        )
+                        ?.precio.toLocaleString(
+                          "es-AR"
+                        )}
+
+                    </p>
+
+                  </div>
+
+                </div>
+
+              )}
+
+
+              {/* BOTÓN */}
+
+              <button
+                type="submit"
+                disabled={procesando}
+                className={`w-full px-8 py-4 rounded-lg font-bold text-lg flex items-center justify-center gap-2 transition ${
+                  procesando
+                    ? "bg-[#4d1210] text-[#d98f8b] cursor-not-allowed"
+                    : "bg-[#e21f26] text-white hover:bg-[#b3161c] shadow-lg shadow-[#e21f26]/30"
+                }`}
+              >
+
+                {procesando ? (
+                  <>
+                    <span className="animate-spin">
+                      ⏳
+                    </span>
+
+                    Creando pedido...
+                  </>
+                ) : (
+                  <>
+                    Crear pedido
+                    <span>→</span>
+                  </>
+                )}
+
+              </button>
+
+
+              <p className="text-center text-xs text-[#8a8a8a]">
+
+                Al continuar vas a ver los datos para hacer la transferencia.
+                Tus números se asignan y te llegan por email recién después
+                de que verifiquemos el comprobante de pago.
+
+              </p>
+
+            </form>
+
+          </div>
+
+        </div>
+
+      )}
 
 
       {/* FOOTER */}
@@ -1984,7 +2089,7 @@ const handleSeleccionarComprobante = (
 
 
                 <a
-                  href="https://www.instagram.com/axelcaballeroo/"
+                  href="https://www.instagram.com/motorwin_/"
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label="Instagram"
