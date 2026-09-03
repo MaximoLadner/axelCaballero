@@ -5,7 +5,7 @@ import {
 } from "../services/participanteService";
 
 import logo from "../../public/logo.jpeg";
-
+import foto1 from "../../public/foto1.jpeg";
 import foto2 from "../../public/foto2.jpeg";
 import foto3 from "../../public/foto3.jpeg";
 import foto4 from "../../public/foto4.jpeg";
@@ -21,7 +21,7 @@ import {
 // ==========================================
 // Definido fuera del componente para no recrear
 // el array en cada render.
-const IMAGENES_CARRUSEL = [ foto2, foto3, foto4, foto5];
+const IMAGENES_CARRUSEL = [foto1, foto2, foto3, foto4, foto5];
 
 function Sorteo() {
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
@@ -1157,10 +1157,47 @@ const handleSeleccionarComprobante = (
 
           <div className="flex items-center gap-3">
 
-            
+            <a
+              href="#premios"
+              className="hidden md:flex items-center gap-2 px-6 py-2 rounded-full bg-[#e21f26] text-white font-semibold hover:bg-[#b3161c] transition"
+            >
+              🏆 Ganadores
+            </a>
 
 
-          
+            <button
+              onClick={() => {
+
+                if (!promocionId) {
+                  alert(
+                    "Primero seleccioná una promoción."
+                  );
+                  return;
+                }
+
+                setMostrarFormulario(true);
+
+                setTimeout(() => {
+
+                  document
+                    .getElementById("formulario")
+                    ?.scrollIntoView({
+                      behavior: "smooth",
+                    });
+
+                }, 100);
+
+              }}
+              className="flex items-center gap-2 px-5 md:px-6 py-2 rounded-full border border-[#e21f26] text-[#e21f26] font-semibold hover:bg-[#e21f26] hover:text-white transition"
+            >
+
+              🎟️
+
+              <span className="hidden sm:inline">
+                Mis Números
+              </span>
+
+            </button>
 
           </div>
 
@@ -1241,12 +1278,16 @@ const handleSeleccionarComprobante = (
               </div>
 
 
-              <a href="https://www.instagram.com/axelcaballeroo/" target="_blank"
-                
+              <button
+                onClick={() =>
+                  alert(
+                    "Próximamente: enlace al sorteo en vivo por YouTube."
+                  )
+                }
                 className="w-full sm:w-fit flex items-center justify-center gap-2 px-5 py-3 rounded-lg border border-[#e21f26] text-[#e21f26] font-semibold hover:bg-[#e21f26]/10 transition relative z-10"
               >
                 ▶️ Ver sorteo en vivo por Instagram
-              </a>
+              </button>
 
             </div>
 
