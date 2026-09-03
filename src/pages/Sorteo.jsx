@@ -607,6 +607,8 @@ const handleSeleccionarComprobante = (
                 Primero transferí el monto indicado abajo y subí el comprobante.
                 Una vez que lo verifiquemos, te enviamos tus números por email a{" "}
                 <strong className="text-white">{email}</strong>.
+                <br />
+                Revisá la carilla de spam.
 
               </p>
 
@@ -820,6 +822,8 @@ const handleSeleccionarComprobante = (
                   Tus números se generan recién cuando confirmamos que el comprobante
                   es válido. Te los mandamos por email a{" "}
                   <strong className="text-white">{email || "tu correo"}</strong>.
+                  <br />
+                  REVISÁ LA CARILLA DE SPAM.
                 </p>
 
               </div>
@@ -1024,7 +1028,8 @@ const handleSeleccionarComprobante = (
 
           Realizá la transferencia por el monto indicado y enviá acá el
           comprobante para que verifiquemos el pago y te mandemos tus
-          números por email.
+          números por email. <br />
+          Revisá la carilla de spam.
 
         </p>
 
