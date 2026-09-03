@@ -1402,7 +1402,7 @@ const handleSeleccionarComprobante = (
               </div>
 
 
-              <a href="https://www.instagram.com/motorwinok/" target="_blank" 
+              <a href="https://www.instagram.com/motorwin_/" target="_blank" 
                 
                 className="w-full sm:w-fit flex items-center justify-center gap-2 px-5 py-3 rounded-lg border border-[#e21f26] text-[#e21f26] font-semibold hover:bg-[#e21f26]/10 transition relative z-10"
               >
