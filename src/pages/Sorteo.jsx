@@ -120,9 +120,9 @@ function Sorteo() {
 
   const DATOS_TRANSFERENCIA = {
     banco: "Mercado Pago",
-    cbu: "0000003100058277014581",
-    alias: "maximoladner",
-    titular: "Maximo Ladner",
+    cbu: "0000003100072155705248",
+    alias: "axelcaballero18",
+    titular: "Axel Elisandro Caballero",
   };
 
   // ==========================================
