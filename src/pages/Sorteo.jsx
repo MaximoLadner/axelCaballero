@@ -1160,37 +1160,7 @@ const handleSeleccionarComprobante = (
             
 
 
-            <button
-              onClick={() => {
-
-                if (!promocionId) {
-                  alert(
-                    "Primero seleccioná una promoción."
-                  );
-                  return;
-                }
-
-                setMostrarFormulario(true);
-
-                setTimeout(() => {
-
-                  document
-                    .getElementById("formulario")
-                    ?.scrollIntoView({
-                      behavior: "smooth",
-                    });
-
-                }, 100);
-
-              }}
-              className="flex items-center gap-2 px-5 md:px-6 py-2 rounded-full border border-[#e21f26] text-[#e21f26] font-semibold hover:bg-[#e21f26] hover:text-white transition"
-            >
-
-              🎟️
-
-              
-
-            </button>
+          
 
           </div>
 
@@ -1323,7 +1293,9 @@ const handleSeleccionarComprobante = (
               ))}
 
 
-              
+              <div className="absolute top-4 right-4 bg-[#e21f26] text-white font-semibold px-4 py-1.5 rounded-full flex items-center gap-2 shadow-lg z-10">
+                🎟️ Sorteo
+              </div>
 
 
               {/* FLECHA ANTERIOR */}
