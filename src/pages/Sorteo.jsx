@@ -1322,30 +1322,7 @@ const handleSeleccionarComprobante = (
           </div>
 
 
-          <div className="flex items-center gap-3">
-
-            <a
-              href="#premios"
-              className="hidden md:flex items-center gap-2 px-6 py-2 rounded-full bg-[#e21f26] text-white font-semibold hover:bg-[#b3161c] transition"
-            >
-              🏆 Ganadores
-            </a>
-
-
-            <button
-              onClick={() => abrirFormulario()}
-              className="flex items-center gap-2 px-5 md:px-6 py-2 rounded-full border border-[#e21f26] text-[#e21f26] font-semibold hover:bg-[#e21f26] hover:text-white transition"
-            >
-
-              🎟️
-
-              <span className="hidden sm:inline">
-                Mis Números
-              </span>
-
-            </button>
-
-          </div>
+          
 
         </div>
 
@@ -1408,7 +1385,7 @@ const handleSeleccionarComprobante = (
                 <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 text-white text-lg md:text-xl font-bold">
 
                   <span>
-                    Sabado 3 de Septiembre de 2026 
+                    Sabado 3 de Octubre de 2026 
                   </span>
 
                   <span className="hidden sm:inline text-[#2a2a2a]">
