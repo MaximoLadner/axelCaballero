@@ -942,14 +942,18 @@ const handleSeleccionarComprobante = (
 
         {/* FIX: botón flotante (FAB) para abrir el chat cuando está cerrado.
             Antes, si el usuario lo cerraba, no había forma de volver a
-            abrirlo desde acá abajo. */}
+            abrirlo desde acá abajo.
+            FIX 2: en mobile lo subimos (bottom-24) para que no quede tapado
+            ni superpuesto con el aviso "Powered by Netlify" que el propio
+            Netlify agrega abajo a la derecha. En desktop se mantiene en
+            bottom-5 como antes, porque ahí no molesta. */}
 
         {!mostrarChat && (
 
           <button
             onClick={() => setMostrarChat(true)}
             aria-label="Abrir chat de ayuda"
-            className="fixed bottom-5 right-5 z-[100] w-14 h-14 rounded-full bg-[#e21f26] text-white text-2xl shadow-2xl shadow-black/40 flex items-center justify-center hover:bg-[#b3161c] transition"
+            className="fixed bottom-24 right-5 sm:bottom-5 z-[100] w-14 h-14 rounded-full bg-[#e21f26] text-white text-2xl shadow-2xl shadow-black/40 flex items-center justify-center hover:bg-[#b3161c] transition"
           >
             💬
           </button>
@@ -1029,7 +1033,7 @@ const handleSeleccionarComprobante = (
           Realizá la transferencia por el monto indicado y enviá acá el
           comprobante para que verifiquemos el pago y te mandemos tus
           números por email. <br />
-          Revisá la carilla de spam.
+          REVISÁ LA CARILLA DE SPAM.
 
         </p>
 
@@ -1104,7 +1108,8 @@ const handleSeleccionarComprobante = (
 
               Te enviamos tus números asignados a{" "}
               <strong className="text-white">{email}</strong>.
-
+                <br />
+              REVISÁ LA CARILLA DE SPAM.
             </p>
 
 
