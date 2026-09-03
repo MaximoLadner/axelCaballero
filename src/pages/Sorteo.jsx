@@ -471,6 +471,25 @@ const handleSeleccionarComprobante = (
     }
   };
 
+  const copiarAlias = async () => {
+    try {
+      await navigator.clipboard.writeText(
+        DATOS_TRANSFERENCIA.alias
+      );
+
+      alert("Alias copiado correctamente.");
+    } catch (error) {
+      console.error(
+        "Error copiando Alias:",
+        error
+      );
+
+      alert(
+        "No se pudo copiar el CBU."
+      );
+    }
+  };
+
   // ==========================================
   // ABRIR POPUP DE FORMULARIO
   // ==========================================
@@ -665,17 +684,17 @@ const handleSeleccionarComprobante = (
                 <div className="bg-[#0a0a0a] border border-[#2a2a2a] rounded-xl p-4">
 
                   <p className="text-[#8a8a8a] text-sm mb-2">
-                    CBU
+                    Alias
                   </p>
 
                   <div className="flex flex-col sm:flex-row sm:items-center gap-3">
 
                     <p className="text-white font-bold break-all flex-1">
-                      {DATOS_TRANSFERENCIA.cbu}
+                      {DATOS_TRANSFERENCIA.alias}
                     </p>
 
                     <button
-                      onClick={copiarCBU}
+                      onClick={copiarAlias}
                       className="shrink-0 px-4 py-2 rounded-lg border border-[#e21f26] text-[#e21f26] font-semibold hover:bg-[#e21f26] hover:text-white transition"
                     >
                       📋 Copiar alias
