@@ -1,5 +1,6 @@
 
 import { db } from "./firebase.mjs";
+import { createHash } from "crypto";
 
 // =====================================================
 // CONFIGURACIÓN
@@ -157,6 +158,20 @@ export const handler = async (event) => {
 
 
     // =================================================
+    // HASH DEL COMPROBANTE (evita reutilizar la misma
+    // imagen para aprobar más de un pedido)
+    // =================================================
+
+    const hashComprobante = createHash("sha256")
+      .update(imagen)
+      .digest("hex");
+
+    const comprobanteUsadoRef = db
+      .collection("comprobantesUsados")
+      .doc(hashComprobante);
+
+
+    // =================================================
     // BUSCAR PEDIDO
     // =================================================
 
@@ -173,6 +188,44 @@ export const handler = async (event) => {
         headers,
         body: JSON.stringify({
           error: "No encontramos ese pedido.",
+        }),
+      };
+    }
+
+
+    // =================================================
+    // ¿ESTE COMPROBANTE YA SE USÓ ANTES?
+    // =================================================
+    //
+    // Se chequea ANTES de gastar en la llamada a la IA.
+    // Solo bloquea si ese comprobante ya sirvió para
+    // APROBAR un pedido (ver más abajo, sección APROBADO).
+    // =================================================
+
+    const comprobanteUsadoSnap =
+      await comprobanteUsadoRef.get();
+
+    if (comprobanteUsadoSnap.exists) {
+
+      const usoAnterior = comprobanteUsadoSnap.data();
+
+      console.log(
+        "COMPROBANTE REUTILIZADO:",
+        JSON.stringify({
+          hashComprobante,
+          pedidoOriginal: usoAnterior.pedidoId,
+          pedidoIntentado: pedidoId,
+        })
+      );
+
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          ok: true,
+          aprobado: false,
+          mensaje:
+            "Este comprobante ya fue utilizado para otro pedido. Cada transferencia solo puede usarse una vez.",
         }),
       };
     }
@@ -581,6 +634,25 @@ Reglas:
     // =================================================
 
     if (aprobado) {
+
+      // =================================================
+      // MARCAR COMPROBANTE COMO USADO
+      // =================================================
+      //
+      // Se guarda recién acá (solo si se aprueba), así un
+      // comprobante rechazado por error (foto equivocada,
+      // etc.) no queda "quemado" y se puede reintentar.
+      // A partir de este punto, este mismo comprobante no
+      // podrá volver a aprobar ningún otro pedido.
+      // =================================================
+
+      await comprobanteUsadoRef.set({
+        pedidoId,
+        monto: montoDetectado,
+        titular: resultadoIA.titular_destino || "",
+        fecha: new Date(),
+      });
+
 
       await pedidoRef.update({
 
