@@ -1225,7 +1225,7 @@ const handleSeleccionarComprobante = (
                 <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 text-white text-lg md:text-xl font-bold">
 
                   <span>
-                    Sabado 3 de Septiembre de 2026 
+                    Sabado 3 de Octubre de 2026 
                   </span>
 
                   <span className="hidden sm:inline text-[#2a2a2a]">
