@@ -120,6 +120,7 @@ function Sorteo() {
   const DATOS_TRANSFERENCIA = {
     banco: "Mercado Pago",
     cbu: "0000003100058277014581",
+    alias: "maximoladner",
     titular: "Maximo Ladner",
   };
 
@@ -658,6 +659,32 @@ const handleSeleccionarComprobante = (
                   </div>
 
                 </div>
+
+                {/* Alias */}
+
+                <div className="bg-[#0a0a0a] border border-[#2a2a2a] rounded-xl p-4">
+
+                  <p className="text-[#8a8a8a] text-sm mb-2">
+                    CBU
+                  </p>
+
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+
+                    <p className="text-white font-bold break-all flex-1">
+                      {DATOS_TRANSFERENCIA.cbu}
+                    </p>
+
+                    <button
+                      onClick={copiarCBU}
+                      className="shrink-0 px-4 py-2 rounded-lg border border-[#e21f26] text-[#e21f26] font-semibold hover:bg-[#e21f26] hover:text-white transition"
+                    >
+                      📋 Copiar alias
+                    </button>
+
+                  </div>
+
+                </div>
+
 
 
                 {/* TITULAR */}
