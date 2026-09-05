@@ -271,6 +271,18 @@ Analizá cuidadosamente esta imagen.
 Determina si es un comprobante de una transferencia
 o pago.
 
+IMPORTANTE: el comprobante puede provenir de CUALQUIER
+banco, billetera virtual o entidad financiera argentina,
+por ejemplo (sin limitarse a esta lista): Mercado Pago,
+Cuenta DNI, Naranja X, Uala, Lemon, Personal Pay,
+Brubank, Banco Santander, BBVA, Banco Galicia, Banco
+Nación, Banco Provincia, Banco Macro, ICBC, u otro home
+banking o billetera. No asumas que el comprobante tiene
+que tener el diseño o el formato de Mercado Pago. Cada
+entidad tiene su propio diseño de comprobante, colores,
+logos y forma de mostrar los datos: ADAPTATE al formato
+que aparezca en la imagen.
+
 Extraé únicamente información que sea claramente visible.
 NO inventes ningún dato.
 
@@ -282,6 +294,12 @@ nombre de la persona o entidad que RECIBE el dinero.
 
 El campo "cbu_destino" debe contener solamente el
 CBU, CVU o identificador de la cuenta que RECIBE el dinero.
+Recordá que el CBU (de bancos tradicionales) y el CVU
+(de billeteras virtuales) tienen el mismo formato de 22
+dígitos numéricos, así que tratalos de la misma forma:
+extraé el número tal cual aparece, sin importar si el
+comprobante lo llama "CBU", "CVU", "CBU/CVU", "alias" o
+"cuenta destino".
 
 Si el comprobante muestra claramente que la transferencia
 fue realizada, completada, exitosa, aprobada o enviada,
@@ -308,7 +326,8 @@ Reglas:
 
 1. es_comprobante:
    true solamente si la imagen parece ser un comprobante
-   de transferencia o pago.
+   de transferencia o pago, sin importar el banco, billetera
+   o entidad emisora del comprobante.
 
 2. monto:
    debe ser el importe transferido.
@@ -318,7 +337,8 @@ Reglas:
 
 4. cbu_destino:
    debe ser el CBU, CVU o identificador de la cuenta
-   destinataria si aparece.
+   destinataria si aparece, sin importar si el comprobante
+   lo llama CBU, CVU, o "cuenta".
 
 5. fecha:
    fecha visible en el comprobante.
@@ -346,13 +366,13 @@ Reglas:
     destinatario.
 
 12. Prestá especial atención al monto y a la cuenta
-    destinataria.
+    destinataria, sin importar el formato visual del
+    comprobante ni el banco o billetera de origen.
 
-13.Prestá ESPECIAL ATENCIÓN al horario, si pasaron mas de 3 min desde que se realizó la transferencia, el comprobante no es válido.
+13. Prestá ESPECIAL ATENCIÓN al horario, si pasaron mas de 3 min desde que se realizó la transferencia, el comprobante no es válido.
 
-14.Prestá ESPECIAL ATENCION de que el comprobante no este modificado por algun editos de imagenes, revisa bien los numeros que no esten borrado o adulterados, si el comprobante esta adulterado no es válido.
+14. Prestá ESPECIAL ATENCION de que el comprobante no este modificado por algun editos de imagenes, revisa bien los numeros que no esten borrado o adulterados, si el comprobante esta adulterado no es válido.
 `;
-
 
     // =================================================
     // ENVIAR A OPENROUTER
